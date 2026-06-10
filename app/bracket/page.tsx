@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Bracket } from "@/components/bracket";
 import type { Match } from "@/lib/types";
@@ -7,19 +8,17 @@ import type { Match } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export default async function BracketPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const userId = await getUserId();
+  if (!userId) redirect("/login");
 
+  const supabase = await createClient();
   const [{ data: matches }, { data: myPicks }, { data: champRow }] = await Promise.all([
     supabase
       .from("matches")
       .select("*")
       .in("stage", ["R32", "R16", "QF", "SF", "3RD", "F"])
       .order("kickoff"),
-    supabase.from("bracket_picks").select("round, team").eq("user_id", user.id),
+    supabase.from("bracket_picks").select("round, team").eq("user_id", userId),
     supabase.from("tournament_results").select("team").eq("kind", "CHAMP").maybeSingle(),
   ]);
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getUserId } from "@/lib/auth";
 import { DonutIcon, MedalIcon, TrophyIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -45,11 +45,7 @@ const BRACKET_POINTS = [
 ];
 
 export default async function RulesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!(await getUserId())) redirect("/login");
 
   return (
     <div className="rise mx-auto max-w-3xl">

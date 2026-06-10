@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PredictionRow } from "@/components/prediction-row";
 import type { Match, Prediction } from "@/lib/types";
@@ -14,25 +15,21 @@ export default async function MatchesPage({
   const { view } = await searchParams;
   const showResults = view === "results";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const userId = await getUserId();
+  if (!userId) redirect("/login");
 
+  const supabase = await createClient();
   const nowIso = new Date().toISOString();
   // Results view: finished/past matches, newest first. Default: everything
   // still to play (including matches currently in progress).
   const cutoff = new Date(new Date(nowIso).getTime() - 4 * 3_600_000).toISOString();
   const matchQuery = supabase.from("matches").select("*");
-  const { data: matches } = showResults
-    ? await matchQuery.lt("kickoff", nowIso).order("kickoff", { ascending: false }).limit(60)
-    : await matchQuery.gte("kickoff", cutoff).order("kickoff", { ascending: true }).limit(60);
-
-  const { data: predictions } = await supabase
-    .from("predictions")
-    .select("*")
-    .eq("user_id", user.id);
+  const [{ data: matches }, { data: predictions }] = await Promise.all([
+    showResults
+      ? matchQuery.lt("kickoff", nowIso).order("kickoff", { ascending: false }).limit(60)
+      : matchQuery.gte("kickoff", cutoff).order("kickoff", { ascending: true }).limit(60),
+    supabase.from("predictions").select("*").eq("user_id", userId),
+  ]);
 
   const predByMatch = new Map<number, Prediction>(
     (predictions ?? []).map((p: Prediction) => [p.match_id, p])
@@ -101,7 +98,7 @@ export default async function MatchesPage({
                 key={m.id}
                 match={m}
                 prediction={predByMatch.get(m.id) ?? null}
-                userId={user.id}
+                userId={userId}
               />
             ))}
           </div>

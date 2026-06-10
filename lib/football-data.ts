@@ -131,3 +131,24 @@ export function fdFinalScore(match: FdMatch): { home: number | null; away: numbe
   }
   return { home: s.fullTime.home, away: s.fullTime.away };
 }
+
+/**
+ * Champion of a finished Final: the shootout winner if it went to penalties,
+ * otherwise the side with more goals after 90'/120'. Returns null if either
+ * team is still TBD. (A Final cannot end level without penalties, so the goal
+ * comparison is only reached for a decided regular/ET result.)
+ */
+export function championFromFinal(m: {
+  status: string;
+  home_team: string | null;
+  away_team: string | null;
+  home_goals: number | null;
+  away_goals: number | null;
+  penalty_winner: "home" | "away" | null;
+}): string | null {
+  if (!m.home_team || !m.away_team) return null;
+  if (m.status === "PEN") {
+    return m.penalty_winner === "home" ? m.home_team : m.away_team;
+  }
+  return (m.home_goals ?? 0) > (m.away_goals ?? 0) ? m.home_team : m.away_team;
+}

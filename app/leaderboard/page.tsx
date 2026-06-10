@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { LeaderboardRow } from "@/lib/types";
 import { CrownIcon, DonutIcon, MedalIcon, TargetIcon, TrophyIcon } from "@/components/icons";
@@ -45,12 +46,13 @@ function Podium({ rows, userId }: { rows: LeaderboardRow[]; userId: string }) {
 
 export default async function LeaderboardPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // The leaderboard query doesn't depend on the user id, so fetch both at once.
+  const [userId, { data }] = await Promise.all([
+    getUserId(),
+    supabase.from("leaderboard").select("*").returns<LeaderboardRow[]>(),
+  ]);
+  if (!userId) redirect("/login");
 
-  const { data } = await supabase.from("leaderboard").select("*").returns<LeaderboardRow[]>();
   const rows = data ?? [];
   const anyPoints = rows.some((r) => r.total_points > 0);
 
@@ -65,7 +67,7 @@ export default async function LeaderboardPage() {
 
       {rows.length >= 3 && anyPoints && (
         <div className="rise" style={{ "--d": "0.08s" } as React.CSSProperties}>
-          <Podium rows={rows} userId={user.id} />
+          <Podium rows={rows} userId={userId} />
         </div>
       )}
 
@@ -89,7 +91,7 @@ export default async function LeaderboardPage() {
               return (
                 <tr
                   key={row.user_id}
-                  className={`border-t border-line/50 ${row.user_id === user.id ? "bg-volt/5" : ""}`}
+                  className={`border-t border-line/50 ${row.user_id === userId ? "bg-volt/5" : ""}`}
                 >
                   <td className="display w-10 px-3 py-2.5 text-muted">
                     {i + 1}
@@ -100,7 +102,7 @@ export default async function LeaderboardPage() {
                     {row.champion_guessed && (
                       <CrownIcon className="ml-1.5 inline-block h-3.5 w-3.5 text-gold" />
                     )}
-                    {row.user_id === user.id && <span className="tag ml-2 !text-volt">you</span>}
+                    {row.user_id === userId && <span className="tag ml-2 !text-volt">you</span>}
                   </td>
                   <td className="px-3 py-2.5 text-right text-muted">{row.match_points}</td>
                   <td className="px-3 py-2.5 text-right text-muted">{row.tournament_points}</td>

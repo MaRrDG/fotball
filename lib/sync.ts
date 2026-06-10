@@ -15,6 +15,7 @@ import {
   fdStatus,
   fdGroup,
   fdFinalScore,
+  championFromFinal,
 } from "@/lib/football-data";
 import { isFinished } from "@/lib/types";
 
@@ -111,12 +112,9 @@ async function updateTournamentResults(db: Admin) {
     for (const team of [m.home_team, m.away_team]) {
       if (team) rows.push({ kind: m.stage, team });
     }
-    if (m.stage === "F" && isFinished(m.status) && m.home_team && m.away_team) {
-      const champion =
-        m.status === "PEN"
-          ? m.penalty_winner === "home" ? m.home_team : m.away_team
-          : (m.home_goals ?? 0) > (m.away_goals ?? 0) ? m.home_team : m.away_team;
-      rows.push({ kind: "CHAMP", team: champion });
+    if (m.stage === "F" && isFinished(m.status)) {
+      const champion = championFromFinal(m);
+      if (champion) rows.push({ kind: "CHAMP", team: champion });
     }
   }
   if (rows.length > 0) {

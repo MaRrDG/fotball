@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { matchIsOpen, isFinished, STAGE_LABELS, type Match } from "@/lib/types";
 import { EyeOffIcon, TargetIcon } from "@/components/icons";
@@ -18,29 +19,25 @@ type PredictionWithProfile = {
 
 export default async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const userId = await getUserId();
+  if (!userId) redirect("/login");
 
-  const { data: match } = await supabase
-    .from("matches")
-    .select("*")
-    .eq("id", Number(id))
-    .single<Match>();
+  const supabase = await createClient();
+  // Neither query needs the user id, so fetch the match and predictions together.
+  // RLS does the heavy lifting on predictions: while the match is open this only
+  // returns the caller's own prediction; after T-30 it returns everyone's.
+  const [{ data: match }, { data: predictions }] = await Promise.all([
+    supabase.from("matches").select("*").eq("id", Number(id)).single<Match>(),
+    supabase
+      .from("predictions")
+      .select("user_id, home_goals, away_goals, penalty_winner, points, is_bullseye, profiles(nickname)")
+      .eq("match_id", Number(id))
+      .returns<PredictionWithProfile[]>(),
+  ]);
   if (!match) notFound();
 
   const open = matchIsOpen(match);
   const finished = isFinished(match.status);
-
-  // RLS does the heavy lifting: while the match is open this only returns
-  // the caller's own prediction; after T-30 it returns everyone's.
-  const { data: predictions } = await supabase
-    .from("predictions")
-    .select("user_id, home_goals, away_goals, penalty_winner, points, is_bullseye, profiles(nickname)")
-    .eq("match_id", Number(id))
-    .returns<PredictionWithProfile[]>();
 
   const sorted = [...(predictions ?? [])].sort(
     (a, b) => (b.points ?? -1) - (a.points ?? -1)
@@ -125,12 +122,12 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             <div
               key={p.user_id}
               className={`panel flex items-center justify-between px-4 py-2.5 ${
-                p.user_id === user.id ? "border-volt/60" : ""
+                p.user_id === userId ? "border-volt/60" : ""
               }`}
             >
               <span className="text-sm font-bold">
                 {p.profiles?.nickname ?? "?"}
-                {p.user_id === user.id && <span className="tag ml-2 !text-volt">you</span>}
+                {p.user_id === userId && <span className="tag ml-2 !text-volt">you</span>}
               </span>
               <span className="display text-xl">
                 {p.home_goals}<span className="text-muted">–</span>{p.away_goals}
