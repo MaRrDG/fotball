@@ -41,7 +41,7 @@ function LoginForm() {
         <h1 className="display text-xl text-chalk">Office Predictor</h1>
       </div>
       <p className="mt-4 mb-8 text-sm text-muted">
-        FIFA World Cup 2026 office pool. Loser buys donuts — that part is real.
+        FIFA World Cup 2026 office pool.
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <input

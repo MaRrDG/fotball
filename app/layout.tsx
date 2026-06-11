@@ -27,8 +27,7 @@ const TICKER = [
   "Right winner +2",
   "Penalty call +2",
   "Champion call +50",
-  "Winner takes 60% and the trophy",
-  "Last place brings the donuts",
+  "Winner takes 100%",
 ];
 
 export default function RootLayout({

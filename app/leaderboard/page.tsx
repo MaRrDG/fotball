@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { LeaderboardRow } from "@/lib/types";
-import { CrownIcon, DonutIcon, MedalIcon, TargetIcon, TrophyIcon } from "@/components/icons";
+import { CrownIcon, MedalIcon, TargetIcon, TrophyIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +95,6 @@ export default async function LeaderboardPage() {
                 >
                   <td className="display w-10 px-3 py-2.5 text-muted">
                     {i + 1}
-                    {last && <DonutIcon className="ml-1.5 inline-block h-3.5 w-3.5 text-gold" />}
                   </td>
                   <td className="px-3 py-2.5 font-bold">
                     {row.nickname}
@@ -119,8 +118,6 @@ export default async function LeaderboardPage() {
       </div>
 
       <p className="mt-3 text-center text-xs text-muted">
-        <DonutIcon className="mr-1 inline-block h-3.5 w-3.5 text-gold" />= currently buying the
-        donuts ·{" "}
         <Link href="/rules" className="text-volt hover:underline">
           how points work
         </Link>
