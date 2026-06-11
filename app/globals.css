@@ -202,7 +202,7 @@ main, header, footer {
 .ticker-track {
   display: flex;
   width: max-content;
-  animation: ticker 40s linear infinite;
+  animation: ticker 70s linear infinite;
 }
 
 @keyframes trophy-glow {

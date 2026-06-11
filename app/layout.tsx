@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 const TICKER = [
   "Ce citesti aici?",
   "Hai romania!",
-  "X pauza 2?",
+  "1-1 pauza, 2-0 final",
   "Acum e timpul sa iti faci cont pe superbet.",
   "Ai n-ai mingea tragi la poarta!",
   "Vasi decar.",
