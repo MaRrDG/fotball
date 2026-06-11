@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PredictionRow } from "@/components/prediction-row";
 import { LiveHero } from "@/components/live-hero";
 import { formatRo } from "@/lib/datetime";
-import { isFinished, type Match, type Prediction } from "@/lib/types";
+import { isFinished, matchIsLive, type Match, type Prediction } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -38,18 +38,9 @@ export default async function MatchesPage({
   );
 
   // Matches currently being played get pulled out of the day list and shown
-  // in the live hero instead. "Live" = kicked off within the last ~3.5h and
-  // not yet final — this also covers the gap before the sync cron first
-  // reports IN_PLAY.
+  // in the live hero instead.
   const nowMs = new Date(nowIso).getTime();
-  const liveMatches = showResults
-    ? []
-    : ((matches ?? []) as Match[]).filter((m) => {
-        if (isFinished(m.status)) return false;
-        if (["POSTPONED", "SUSPENDED", "CANCELLED"].includes(m.status)) return false;
-        const ko = new Date(m.kickoff).getTime();
-        return ko <= nowMs && nowMs - ko <= 3.5 * 3_600_000;
-      });
+  const liveMatches = showResults ? [] : ((matches ?? []) as Match[]).filter(matchIsLive);
   // Dev-only preview: fake live card so the design is visible without a
   // real match in progress. Never runs in production.
   if (process.env.NODE_ENV === "development" && !showResults && liveMatches.length === 0) {

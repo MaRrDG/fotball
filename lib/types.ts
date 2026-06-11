@@ -60,6 +60,16 @@ export function isFinished(status: string): boolean {
   return (FINISHED_STATUSES as readonly string[]).includes(status);
 }
 
+// "Live" = kicked off within the last ~3.5h and not yet final — this also
+// covers the gap before the sync cron first reports IN_PLAY.
+export function matchIsLive(match: Pick<Match, "kickoff" | "status">): boolean {
+  if (isFinished(match.status)) return false;
+  if (["POSTPONED", "SUSPENDED", "CANCELLED"].includes(match.status)) return false;
+  const ko = new Date(match.kickoff).getTime();
+  const now = Date.now();
+  return ko <= now && now - ko <= 3.5 * 3_600_000;
+}
+
 export const BRACKET_ROUNDS: { round: BracketRound; label: string; slots: number; points: number }[] = [
   { round: "R16", label: "Round of 16", slots: 16, points: 1 },
   { round: "QF", label: "Quarter-finals", slots: 8, points: 2 },

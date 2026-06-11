@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { matchIsOpen, isFinished, STAGE_LABELS, type Match } from "@/lib/types";
+import { matchIsOpen, isFinished, matchIsLive, STAGE_LABELS, type Match } from "@/lib/types";
 import { formatRo } from "@/lib/datetime";
 import { EyeOffIcon, TargetIcon } from "@/components/icons";
+import { LiveRefresh } from "@/components/live-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
   const open = matchIsOpen(match);
   const finished = isFinished(match.status);
+  const live = matchIsLive(match);
 
   const sorted = [...(predictions ?? [])].sort(
     (a, b) => (b.points ?? -1) - (a.points ?? -1)
@@ -46,6 +48,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="mx-auto max-w-2xl">
+      {live && <LiveRefresh />}
       <Link href="/" className="tag transition-colors hover:!text-volt">
         ← All matches
       </Link>
@@ -70,11 +73,11 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               {match.home_team ?? "TBD"}
             </span>
             <span className="slant display bg-pitch px-5 py-2 text-5xl leading-none">
-              {match.home_goals !== null ? (
+              {match.home_goals !== null || live ? (
                 <>
-                  <span className="text-volt">{match.home_goals}</span>
+                  <span className="text-volt">{match.home_goals ?? 0}</span>
                   <span className="mx-1.5 text-muted">:</span>
-                  <span className="text-volt">{match.away_goals}</span>
+                  <span className="text-volt">{match.away_goals ?? 0}</span>
                 </>
               ) : (
                 <span className="text-muted">VS</span>
@@ -92,9 +95,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               advance on penalties
             </p>
           )}
-          {!finished && match.status !== "NS" && (
+          {live && (
             <p className="tag mt-3 text-center !text-danger">
-              <span className="live-dot">●</span> {match.status}
+              <span className="live-dot">●</span>{" "}
+              {match.status === "NS" ? "Live" : match.status}
             </p>
           )}
         </div>
@@ -122,15 +126,15 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           {sorted.map((p) => (
             <div
               key={p.user_id}
-              className={`panel flex items-center justify-between px-4 py-2.5 ${
+              className={`panel grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2.5 ${
                 p.user_id === userId ? "border-volt/60" : ""
               }`}
             >
-              <span className="text-sm font-bold">
+              <span className="truncate text-sm font-bold">
                 {p.profiles?.nickname ?? "?"}
                 {p.user_id === userId && <span className="tag ml-2 !text-volt">you</span>}
               </span>
-              <span className="display text-xl">
+              <span className="display text-center text-xl">
                 {p.home_goals}<span className="text-muted">–</span>{p.away_goals}
                 {p.penalty_winner && (
                   <span className="tag ml-2">
@@ -138,7 +142,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                   </span>
                 )}
               </span>
-              <span className="min-w-16 text-right">
+              <span className="text-right">
                 {p.points !== null ? (
                   <span className={`display text-lg ${p.is_bullseye ? "trophy-glow text-gold" : "text-volt"}`}>
                     {p.is_bullseye && <TargetIcon className="mr-1 inline-block h-4 w-4 align-[-2px]" />}

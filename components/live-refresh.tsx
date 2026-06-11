@@ -1,0 +1,17 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+/** Re-pulls server data periodically so a live score follows the sync cron
+ *  without a manual reload. Renders nothing. */
+export function LiveRefresh({ intervalMs = 60_000 }: { intervalMs?: number }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), intervalMs);
+    return () => clearInterval(id);
+  }, [router, intervalMs]);
+
+  return null;
+}
