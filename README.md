@@ -74,16 +74,24 @@ the Round-of-32 draw exists — spends one extra request on standings to record 
 official group winners. That is at most ~1 request per 10 minutes, far inside the
 free tier's 10 requests/minute limit.
 
-**Options for the every-10-minutes trigger:**
+The secret must be sent in the **`Authorization: Bearer` header** — the endpoint
+deliberately ignores a `?secret=` query param (query strings leak into request and
+proxy logs).
 
-- [cron-job.org](https://cron-job.org) (free): call
-  `https://your-app/api/cron/sync?secret=YOUR_CRON_SECRET` every 10 minutes.
-- GitHub Actions `schedule:` workflow doing a `curl` of the same URL.
-- Vercel Pro: change `vercel.json` to `*/10 * * * *`.
+**Every-10-minutes trigger — [cron-job.org](https://cron-job.org) (free):**
 
-The included `vercel.json` registers a daily 03:00 UTC cron (the free Vercel plan
-allows daily crons); Vercel automatically sends `Authorization: Bearer $CRON_SECRET`.
-Keep it as a backstop even if you add an external 10-minute cron.
+- URL: `https://your-app/api/cron/sync`
+- Schedule: every 10 minutes
+- Under "Headers", add: `Authorization: Bearer YOUR_CRON_SECRET`
+
+Alternatives: a GitHub Actions `schedule:` workflow that `curl`s the same URL with the
+same header, or Vercel Pro with `vercel.json` set to `*/10 * * * *`.
+
+> The free Vercel (Hobby) plan only runs crons **once per day**, which is why this app
+> relies on an external 10-minute trigger instead. `vercel.json` ships with no cron. If
+> you want a daily backstop on top of the external cron, add
+> `{ "crons": [{ "path": "/api/cron/sync", "schedule": "0 3 * * *" }] }` — Vercel sends
+> the `Authorization: Bearer $CRON_SECRET` header automatically.
 
 ## 7. Deploy
 
