@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 const MATCH_POINTS = [
   {
-    pts: 3,
+    pts: "3–10",
     name: "Bulls-eye",
-    desc: "Exact score.",
+    desc: "Exact score. Worth more the deeper the round — see the table below.",
     example: "You said 2–1, it ended 2–1.",
     tone: "text-gold",
   },
@@ -36,12 +36,15 @@ const MATCH_POINTS = [
   },
 ];
 
-const BRACKET_POINTS = [
-  { round: "Round of 16", per: 1, slots: 16, max: 16 },
-  { round: "Quarter-finals", per: 2, slots: 8, max: 16 },
-  { round: "Semi-finals", per: 3, slots: 4, max: 12 },
-  { round: "The Final", per: 5, slots: 2, max: 10 },
-  { round: "World Champion", per: 8, slots: 1, max: 8 },
+// The bulls-eye (exact score) reward climbs through the knockout rounds.
+// Goal-difference (+2) and trend (+1) are flat at every stage.
+const STAGE_BULLSEYE = [
+  { stage: "Group stage", pts: 3 },
+  { stage: "Round of 32", pts: 4 },
+  { stage: "Round of 16", pts: 5 },
+  { stage: "Quarter-final", pts: 6 },
+  { stage: "Semi-final / 3rd place", pts: 8 },
+  { stage: "Final", pts: 10 },
 ];
 
 export default async function RulesPage() {
@@ -80,6 +83,30 @@ export default async function RulesPage() {
             </div>
           ))}
         </div>
+        <p className="tag mt-5 mb-2">Bulls-eye — exact score is worth more each round</p>
+        <div className="panel overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left">
+                <th className="tag px-4 py-2 !text-muted">Stage</th>
+                <th className="tag px-4 py-2 text-right !text-muted">Exact score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {STAGE_BULLSEYE.map((s, i) => (
+                <tr key={s.stage} className={i > 0 ? "border-t border-line/50" : ""}>
+                  <td className="px-4 py-2 font-medium">{s.stage}</td>
+                  <td className="display px-4 py-2 text-right text-gold">+{s.pts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Goal difference (+2) and trend (+1) stay the same at every stage — only the
+          exact-score bonus climbs.
+        </p>
+
         <div className="panel mt-3 flex items-center gap-4 border-volt/30 p-4">
           <span className="display text-3xl text-volt">+1</span>
           <p className="text-sm">
@@ -111,36 +138,13 @@ export default async function RulesPage() {
           </p>
         </div>
 
-        <p className="tag mt-5 mb-2">The bracket — points per team you correctly place</p>
-        <div className="panel overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left">
-                <th className="tag px-4 py-2 !text-muted">Stage</th>
-                <th className="tag px-4 py-2 text-right !text-muted">Per team</th>
-                <th className="tag px-4 py-2 text-right !text-muted">Teams</th>
-                <th className="tag px-4 py-2 text-right !text-muted">Max</th>
-              </tr>
-            </thead>
-            <tbody>
-              {BRACKET_POINTS.map((b, i) => (
-                <tr key={b.round} className={i > 0 ? "border-t border-line/50" : ""}>
-                  <td className="px-4 py-2 font-medium">{b.round}</td>
-                  <td className="display px-4 py-2 text-right text-volt">+{b.per}</td>
-                  <td className="px-4 py-2 text-right text-muted">{b.slots}</td>
-                  <td className="display px-4 py-2 text-right text-chalk">{b.max}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-2 text-xs text-muted">
-          A team counts the moment it reaches the round — a perfect bracket is worth 62
-          points on top of your group winners. Track it live on the{" "}
+        <p className="mt-3 text-sm text-muted">
+          That&apos;s the only tournament-level pick. The knockout{" "}
           <Link href="/bracket" className="text-volt hover:underline">
             bracket
-          </Link>
-          .
+          </Link>{" "}
+          isn&apos;t something you fill in — it builds itself automatically as each round is
+          played, so you can watch the road to the final live. No points are attached to it.
         </p>
       </section>
 
@@ -160,13 +164,8 @@ export default async function RulesPage() {
           </li>
           <li className="panel p-3">
             <span className="font-bold text-volt">Group winners</span>{" "}
-            <span className="text-muted">lock 2 hours before the opening match.</span>
-          </li>
-          <li className="panel p-3">
-            <span className="font-bold text-volt">The bracket</span>{" "}
             <span className="text-muted">
-              opens after the last group game and locks 2 hours before the first
-              Round-of-32 kick-off.
+              lock per group — each one closes the moment that group&apos;s first match kicks off.
             </span>
           </li>
           <li className="panel p-3">

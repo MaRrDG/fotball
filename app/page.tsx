@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PredictionRow } from "@/components/prediction-row";
+import { formatRo } from "@/lib/datetime";
 import type { Match, Prediction } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export default async function MatchesPage({
   // Group by calendar day for display.
   const byDay = new Map<string, Match[]>();
   for (const m of (matches ?? []) as Match[]) {
-    const day = new Date(m.kickoff).toLocaleDateString(undefined, {
+    const day = formatRo(m.kickoff, {
       weekday: "long",
       month: "long",
       day: "numeric",

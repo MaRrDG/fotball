@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { matchIsOpen, isFinished, STAGE_LABELS, type Match } from "@/lib/types";
+import { formatRo } from "@/lib/datetime";
 import { EyeOffIcon, TargetIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         <div className="flex items-center justify-between bg-volt px-4 py-1.5">
           <span className="display text-sm text-pitch">{STAGE_LABELS[match.stage]}</span>
           <span className="display text-sm text-pitch">
-            {new Date(match.kickoff).toLocaleString(undefined, {
+            {formatRo(match.kickoff, {
               weekday: "short",
               month: "short",
               day: "numeric",

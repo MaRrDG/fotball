@@ -2,22 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { BRACKET_ROUNDS, type BracketRound, type Team } from "@/lib/types";
+import { type Team } from "@/lib/types";
+import { formatRo } from "@/lib/datetime";
 import { LockIcon } from "@/components/icons";
 
 interface Props {
   userId: string;
   teams: Team[];
-  groupPicksLock: string | null;
-  bracketOpen: string | null;
-  bracketLock: string | null;
+  /** group letter -> ISO kickoff of that group's first match (its lock time). */
+  groupLocks: Record<string, string>;
   initialGroupPicks: Record<string, string>;
-  initialBracketPicks: { round: string; team: string }[];
 }
 
 function fmt(ts: string | null) {
   return ts
-    ? new Date(ts).toLocaleString(undefined, {
+    ? formatRo(ts, {
         month: "short",
         day: "numeric",
         hour: "2-digit",
@@ -29,19 +28,19 @@ function fmt(ts: string | null) {
 export function TournamentForm({
   userId,
   teams,
-  groupPicksLock,
-  bracketOpen,
-  bracketLock,
+  groupLocks,
   initialGroupPicks,
-  initialBracketPicks,
 }: Props) {
   const [now] = useState(() => Date.now());
-  const groupsOpen = !groupPicksLock || now < new Date(groupPicksLock).getTime();
-  const bracketIsOpen =
-    !!bracketOpen &&
-    now >= new Date(bracketOpen).getTime() &&
-    (!bracketLock || now < new Date(bracketLock).getTime());
-
+  // A group is editable until its own first match kicks off; no scheduled
+  // match yet (lock unknown) means still open.
+  const isGroupOpen = (group: string) =>
+    !groupLocks[group] || now < new Date(groupLocks[group]).getTime();
+  const anyGroupOpen = useMemo(
+    () => teams.some((t) => isGroupOpen(t.group_name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [teams, groupLocks, now]
+  );
   const groups = useMemo(() => {
     const map = new Map<string, Team[]>();
     for (const t of teams) {
@@ -52,11 +51,6 @@ export function TournamentForm({
   }, [teams]);
 
   const [groupPicks, setGroupPicks] = useState<Record<string, string>>(initialGroupPicks);
-  const [bracketPicks, setBracketPicks] = useState<Record<BracketRound, Set<string>>>(() => {
-    const init = { R16: new Set<string>(), QF: new Set<string>(), SF: new Set<string>(), F: new Set<string>(), CHAMP: new Set<string>() };
-    for (const p of initialBracketPicks) init[p.round as BracketRound]?.add(p.team);
-    return init;
-  });
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -64,59 +58,28 @@ export function TournamentForm({
     setSaving(true);
     setMessage(null);
     const supabase = createClient();
+    // Only send still-open groups. Including a locked group would trip its RLS
+    // policy and fail the whole upsert, losing the open groups too.
     const rows = Object.entries(groupPicks)
-      .filter(([, team]) => team)
+      .filter(([group_name, team]) => team && isGroupOpen(group_name))
       .map(([group_name, team]) => ({ user_id: userId, group_name, team }));
+    if (rows.length === 0) {
+      setMessage("Nothing to save — those groups have already kicked off.");
+      setSaving(false);
+      return;
+    }
     const { error } = await supabase
       .from("group_winner_picks")
       .upsert(rows, { onConflict: "user_id,group_name" });
     setMessage(
       error
         ? error.code === "42501"
-          ? "Locked — group picks closed 2h before the opening match."
+          ? "Locked — a group closes when its first match kicks off."
           : error.message
         : "Group picks saved ✓"
     );
     setSaving(false);
   }
-
-  async function saveBracket() {
-    setSaving(true);
-    setMessage(null);
-    const supabase = createClient();
-    // Replace all own bracket rows with the current selection.
-    const { error: delError } = await supabase.from("bracket_picks").delete().eq("user_id", userId);
-    if (delError) {
-      setMessage(delError.code === "42501" ? "Bracket picks are locked." : delError.message);
-      setSaving(false);
-      return;
-    }
-    const rows = BRACKET_ROUNDS.flatMap(({ round }) =>
-      [...bracketPicks[round]].map((team) => ({ user_id: userId, round, team }))
-    );
-    if (rows.length > 0) {
-      const { error } = await supabase.from("bracket_picks").insert(rows);
-      if (error) {
-        setMessage(error.code === "42501" ? "Bracket picks are locked." : error.message);
-        setSaving(false);
-        return;
-      }
-    }
-    setMessage("Bracket saved ✓");
-    setSaving(false);
-  }
-
-  function toggleBracket(round: BracketRound, team: string, slots: number) {
-    setBracketPicks((prev) => {
-      const next = { ...prev, [round]: new Set(prev[round]) };
-      if (next[round].has(team)) next[round].delete(team);
-      else if (next[round].size < slots) next[round].add(team);
-      return next;
-    });
-    setMessage(null);
-  }
-
-  const allTeams = useMemo(() => [...teams].sort((a, b) => a.name.localeCompare(b.name)), [teams]);
 
   if (teams.length === 0) {
     return (
@@ -133,8 +96,9 @@ export function TournamentForm({
         My <span className="text-volt">Picks</span>
       </h1>
       <p className="mt-2 mb-10 text-sm text-muted">
-        Group winners (10 pts each) and the knockout bracket
-        (R16: 5 · QF: 10 · SF: 20 · Final: 30 · Champion: 50).
+        Call the winner of each group (3 pts each). The knockout bracket fills in
+        automatically — watch it live on the{" "}
+        <a href="/bracket" className="text-volt hover:underline">bracket</a> page.
       </p>
 
       {/* ---- Group winners ---- */}
@@ -144,43 +108,48 @@ export function TournamentForm({
             <span className="slant bg-volt px-2 py-0.5 text-base text-pitch">01</span>
             Group winners
           </h2>
-          <span className="tag">
-            {groupsOpen
-              ? groupPicksLock
-                ? `Locks ${fmt(groupPicksLock)}`
-                : "Open (lock not set yet)"
-              : (
-                <>
-                  <LockIcon className="mr-1 inline-block h-3 w-3 align-[-1px]" />
-                  Locked
-                </>
-              )}
-          </span>
+          <span className="tag">Each group locks at its first kick-off</span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {groups.map(([group, groupTeams]) => (
-            <label key={group} className="flex flex-col gap-1 text-sm">
-              <span className="tag">Group {group}</span>
-              <select
-                value={groupPicks[group] ?? ""}
-                disabled={!groupsOpen}
-                onChange={(e) => {
-                  setGroupPicks((prev) => ({ ...prev, [group]: e.target.value }));
-                  setMessage(null);
-                }}
-                className="rounded border border-line bg-panel px-2 py-1.5 text-chalk focus:border-volt focus:outline-none disabled:opacity-50"
-              >
-                <option value="">—</option>
-                {groupTeams.map((t) => (
-                  <option key={t.name} value={t.name}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
+          {groups.map(([group, groupTeams]) => {
+            const groupOpen = isGroupOpen(group);
+            const lock = groupLocks[group] ?? null;
+            return (
+              <label key={group} className="flex flex-col gap-1 text-sm">
+                <span className="tag flex items-center justify-between">
+                  <span>Group {group}</span>
+                  <span className={groupOpen ? "!text-muted" : "!text-danger"}>
+                    {groupOpen ? (
+                      lock ? `Locks ${fmt(lock)}` : "Open"
+                    ) : (
+                      <>
+                        <LockIcon className="mr-1 inline-block h-3 w-3 align-[-1px]" />
+                        Locked
+                      </>
+                    )}
+                  </span>
+                </span>
+                <select
+                  value={groupPicks[group] ?? ""}
+                  disabled={!groupOpen}
+                  onChange={(e) => {
+                    setGroupPicks((prev) => ({ ...prev, [group]: e.target.value }));
+                    setMessage(null);
+                  }}
+                  className="rounded border border-line bg-panel px-2 py-1.5 text-chalk focus:border-volt focus:outline-none disabled:opacity-50"
+                >
+                  <option value="">—</option>
+                  {groupTeams.map((t) => (
+                    <option key={t.name} value={t.name}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            );
+          })}
         </div>
-        {groupsOpen && (
+        {anyGroupOpen && (
           <button
             onClick={saveGroupPicks}
             disabled={saving}
@@ -188,82 +157,6 @@ export function TournamentForm({
           >
             Save group picks
           </button>
-        )}
-      </section>
-
-      {/* ---- Bracket ---- */}
-      <section>
-        <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-          <h2 className="display flex items-center gap-3 text-2xl">
-            <span className="slant bg-volt px-2 py-0.5 text-base text-pitch">02</span>
-            Knockout bracket
-          </h2>
-          <span className="tag">
-            {bracketIsOpen
-              ? `Open — locks ${fmt(bracketLock) ?? "TBA"}`
-              : bracketOpen && now < new Date(bracketOpen).getTime()
-                ? `Opens ${fmt(bracketOpen)}`
-                : bracketOpen
-                  ? (
-                    <>
-                      <LockIcon className="mr-1 inline-block h-3 w-3 align-[-1px]" />
-                      Locked
-                    </>
-                  )
-                  : "Opens after the group stage"}
-          </span>
-        </div>
-
-        {!bracketIsOpen && initialBracketPicks.length === 0 ? (
-          <p className="text-sm text-muted">
-            The bracket opens after the last group match and locks 2 hours before the first
-            Round-of-32 game.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-5">
-            {BRACKET_ROUNDS.map(({ round, label, slots, points }) => (
-              <div key={round}>
-                <h3 className="mb-1.5 text-sm font-bold uppercase tracking-wide">
-                  {label}{" "}
-                  <span className="tag font-normal normal-case">
-                    — pick {slots} ({points} pts each) ·{" "}
-                    <span className={bracketPicks[round].size === slots ? "!text-volt" : ""}>
-                      {bracketPicks[round].size}/{slots}
-                    </span>
-                  </span>
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {allTeams.map((t) => {
-                    const selected = bracketPicks[round].has(t.name);
-                    return (
-                      <button
-                        key={t.name}
-                        type="button"
-                        disabled={!bracketIsOpen}
-                        onClick={() => toggleBracket(round, t.name, slots)}
-                        className={`rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-60 ${
-                          selected
-                            ? "border-volt bg-volt/15 font-semibold text-volt"
-                            : "border-line bg-panel text-muted hover:border-volt/50 hover:text-chalk"
-                        }`}
-                      >
-                        {t.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            {bracketIsOpen && (
-              <button
-                onClick={saveBracket}
-                disabled={saving}
-                className="btn-volt self-start px-6 py-2 text-sm"
-              >
-                Save bracket
-              </button>
-            )}
-          </div>
         )}
       </section>
 

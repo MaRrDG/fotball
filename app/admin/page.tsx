@@ -11,17 +11,10 @@ export default async function AdminPage() {
   if (!profile.is_admin) redirect("/");
 
   const supabase = await createClient();
-  const [{ data: settings }, { count: matchCount }, { count: userCount }] = await Promise.all([
-    supabase.from("settings").select("key, value"),
+  const [{ count: matchCount }, { count: userCount }] = await Promise.all([
     supabase.from("matches").select("id", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
   ]);
 
-  return (
-    <AdminPanel
-      settings={Object.fromEntries((settings ?? []).map((s) => [s.key, s.value ?? ""]))}
-      matchCount={matchCount ?? 0}
-      userCount={userCount ?? 0}
-    />
-  );
+  return <AdminPanel matchCount={matchCount ?? 0} userCount={userCount ?? 0} />;
 }

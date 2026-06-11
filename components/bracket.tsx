@@ -22,8 +22,6 @@ const COL_W = "w-36 lg:w-auto lg:flex-1 lg:min-w-0";
 
 interface BracketProps {
   matches: Match[];
-  /** rounds the viewer picked each team to reach, e.g. picks.R16 = Set of names */
-  picks: Record<string, Set<string>>;
   champion: string | null;
 }
 
@@ -38,13 +36,11 @@ function TeamLine({
   goals,
   won,
   lost,
-  predicted,
 }: {
   name: string | null;
   goals: number | null;
   won: boolean;
   lost: boolean;
-  predicted: boolean;
 }) {
   return (
     <div
@@ -53,12 +49,6 @@ function TeamLine({
       }`}
     >
       <span className={`truncate text-[11px] ${won ? "font-bold text-volt" : ""}`}>
-        {predicted && (
-          <span
-            className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-volt align-middle"
-            title="You picked this team to be here"
-          />
-        )}
         {name ?? "—"}
       </span>
       <span className={`display text-[11px] ${won ? "text-volt" : ""}`}>{goals ?? ""}</span>
@@ -68,11 +58,9 @@ function TeamLine({
 
 function MatchCard({
   match,
-  picks,
   side,
 }: {
   match: Match | null;
-  picks: Record<string, Set<string>>;
   side: "left" | "right" | "center";
 }) {
   const tick =
@@ -92,7 +80,6 @@ function MatchCard({
   }
 
   const w = winnerSide(match);
-  const roundPicks = picks[match.stage];
   const live = !isFinished(match.status) && !["NS", "POSTPONED", "CANCELLED"].includes(match.status);
 
   return (
@@ -108,7 +95,6 @@ function MatchCard({
         goals={match.home_goals}
         won={w === "home"}
         lost={w === "away"}
-        predicted={!!match.home_team && !!roundPicks?.has(match.home_team)}
       />
       <div className="border-t border-line" />
       <TeamLine
@@ -116,7 +102,6 @@ function MatchCard({
         goals={match.away_goals}
         won={w === "away"}
         lost={w === "home"}
-        predicted={!!match.away_team && !!roundPicks?.has(match.away_team)}
       />
       {match.status === "PEN" && (
         <div className="truncate border-t border-line px-1.5 py-0.5 text-[10px] text-muted">
@@ -130,11 +115,9 @@ function MatchCard({
 function Wing({
   matchesByRound,
   side,
-  picks,
 }: {
   matchesByRound: Record<string, (Match | null)[]>;
   side: "left" | "right";
-  picks: Record<string, Set<string>>;
 }) {
   const rounds = side === "left" ? WING_ROUNDS : [...WING_ROUNDS].reverse();
   return (
@@ -144,7 +127,7 @@ function Wing({
           <div className="tag mb-2 text-center">{ROUND_LABEL[round]}</div>
           <div className={`flex flex-col justify-around ${COLUMN_H}`}>
             {matchesByRound[round].map((m, i) => (
-              <MatchCard key={m?.id ?? `${side}-${round}-${i}`} match={m} picks={picks} side={side} />
+              <MatchCard key={m?.id ?? `${side}-${round}-${i}`} match={m} side={side} />
             ))}
           </div>
         </div>
@@ -153,7 +136,7 @@ function Wing({
   );
 }
 
-export function Bracket({ matches, picks, champion }: BracketProps) {
+export function Bracket({ matches, champion }: BracketProps) {
   const byStage = new Map<string, Match[]>();
   for (const m of matches) {
     if (!byStage.has(m.stage)) byStage.set(m.stage, []);
@@ -179,7 +162,7 @@ export function Bracket({ matches, picks, champion }: BracketProps) {
     <div className="overflow-x-auto pb-4 lg:overflow-visible">
       <div className="flex w-max items-start gap-2 lg:w-full">
         {/* left wing → center → right wing */}
-        <Wing matchesByRound={left} side="left" picks={picks} />
+        <Wing matchesByRound={left} side="left" />
 
         {/* center: the Final */}
         <div
@@ -194,7 +177,7 @@ export function Bracket({ matches, picks, champion }: BracketProps) {
             The Final
           </div>
           <div className="w-full [&>a]:border-gold/50">
-            <MatchCard match={final} picks={picks} side="center" />
+            <MatchCard match={final} side="center" />
           </div>
           <div className="w-full text-center">
             <div className="tag">Champion</div>
@@ -203,21 +186,16 @@ export function Bracket({ matches, picks, champion }: BracketProps) {
             >
               {champion ?? "?"}
             </div>
-            {champion && picks.CHAMP?.has(champion) && (
-              <div className="slant mx-auto mt-2 w-fit bg-volt px-3 py-1 text-xs font-bold text-pitch">
-                You called it! +50
-              </div>
-            )}
           </div>
           {third && (
             <div className="mt-2 w-full opacity-80">
               <div className="tag mb-1 text-center">Third place</div>
-              <MatchCard match={third} picks={picks} side="center" />
+              <MatchCard match={third} side="center" />
             </div>
           )}
         </div>
 
-        <Wing matchesByRound={right} side="right" picks={picks} />
+        <Wing matchesByRound={right} side="right" />
       </div>
     </div>
   );

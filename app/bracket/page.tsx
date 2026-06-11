@@ -12,21 +12,14 @@ export default async function BracketPage() {
   if (!userId) redirect("/login");
 
   const supabase = await createClient();
-  const [{ data: matches }, { data: myPicks }, { data: champRow }] = await Promise.all([
+  const [{ data: matches }, { data: champRow }] = await Promise.all([
     supabase
       .from("matches")
       .select("*")
       .in("stage", ["R32", "R16", "QF", "SF", "3RD", "F"])
       .order("kickoff"),
-    supabase.from("bracket_picks").select("round, team").eq("user_id", userId),
     supabase.from("tournament_results").select("team").eq("kind", "CHAMP").maybeSingle(),
   ]);
-
-  const picks: Record<string, Set<string>> = {};
-  for (const p of myPicks ?? []) {
-    if (!picks[p.round]) picks[p.round] = new Set();
-    picks[p.round].add(p.team);
-  }
 
   const knockout = (matches ?? []) as Match[];
 
@@ -38,12 +31,7 @@ export default async function BracketPage() {
             The <span className="text-volt">Road</span> to the Final
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Live knockout bracket ·{" "}
-            <span className="text-volt">●</span> next to a team = you predicted it would reach
-            that round ·{" "}
-            <Link href="/tournament" className="text-volt underline-offset-2 hover:underline">
-              edit your picks
-            </Link>
+            Live knockout bracket — fills in automatically as each round is played.
           </p>
         </div>
         <Link href="/rules" className="tag !text-volt hover:underline">
@@ -55,9 +43,9 @@ export default async function BracketPage() {
         <div className="panel mx-auto max-w-lg p-8 text-center">
           <div className="display text-2xl text-chalk">Group stage in progress</div>
           <p className="mt-2 text-sm text-muted">
-            The bracket appears here once the Round of 32 is drawn. Until then, lock in your{" "}
+            The bracket appears here once the Round of 32 is drawn. Until then, call your{" "}
             <Link href="/tournament" className="text-volt hover:underline">
-              tournament picks
+              group winners
             </Link>{" "}
             and predict the{" "}
             <Link href="/" className="text-volt hover:underline">
@@ -67,7 +55,7 @@ export default async function BracketPage() {
           </p>
         </div>
       ) : (
-        <Bracket matches={knockout} picks={picks} champion={champRow?.team ?? null} />
+        <Bracket matches={knockout} champion={champRow?.team ?? null} />
       )}
     </div>
   );

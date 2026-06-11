@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { LeaderboardRow } from "@/lib/types";
-import { CrownIcon, MedalIcon, TargetIcon, TrophyIcon } from "@/components/icons";
+import { MedalIcon, TargetIcon, TrophyIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,7 @@ export default async function LeaderboardPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="rise mb-8">
-        <p className="tag mb-1">Sorted by total · ties: bulls-eyes → champion → group stage</p>
+        <p className="tag mb-1">Sorted by total · ties: bulls-eyes → group stage</p>
         <h1 className="display text-5xl leading-none">
           The <span className="text-gold">Table</span>
         </h1>
@@ -98,9 +98,6 @@ export default async function LeaderboardPage() {
                   </td>
                   <td className="px-3 py-2.5 font-bold">
                     {row.nickname}
-                    {row.champion_guessed && (
-                      <CrownIcon className="ml-1.5 inline-block h-3.5 w-3.5 text-gold" />
-                    )}
                     {row.user_id === userId && <span className="tag ml-2 !text-volt">you</span>}
                   </td>
                   <td className="px-3 py-2.5 text-right text-muted">{row.match_points}</td>

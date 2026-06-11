@@ -42,27 +42,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, userId: data.user?.id });
       }
 
-      case "set-setting": {
-        const { key, value } = body;
-        const allowed = ["group_picks_lock", "bracket_picks_open", "bracket_picks_lock"];
-        if (!allowed.includes(key)) {
-          return NextResponse.json({ error: "unknown setting" }, { status: 400 });
-        }
-        // These keys are all timestamps consumed by setting_ts() inside the RLS
-        // policies. A value that doesn't parse as a date makes setting_ts() throw
-        // and breaks all group/bracket pick reads and writes — so validate here.
-        // Empty string is allowed (it clears the lock; setting_ts() nullifs it).
-        if (typeof value !== "string") {
-          return NextResponse.json({ error: "value must be a string" }, { status: 400 });
-        }
-        if (value !== "" && Number.isNaN(Date.parse(value))) {
-          return NextResponse.json({ error: "value must be a timestamp or empty" }, { status: 400 });
-        }
-        const { error } = await db.from("settings").upsert({ key, value });
-        if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-        return NextResponse.json({ ok: true });
-      }
-
       default:
         return NextResponse.json({ error: "unknown action" }, { status: 400 });
     }

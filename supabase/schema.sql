@@ -155,7 +155,7 @@ create table public.tournament_results (
 
 -- ------------------------------------------------------------
 -- SETTINGS (key/value: lock times, sync bookkeeping)
---   group_picks_lock    timestamptz — opening match kickoff minus 2h
+--   (group winner picks lock automatically per group — see group_pick_open)
 --   bracket_picks_open  timestamptz — after last group match
 --   bracket_picks_lock  timestamptz — first R32 kickoff minus 2h
 --   last_fetch_date     YYYY-MM-DD  — sync bookkeeping
@@ -189,12 +189,19 @@ as $$
   );
 $$;
 
--- Group winner picks: editable until the lock; lock unset = still editable.
-create or replace function public.group_picks_open()
+-- Group winner picks lock per group, automatically, when that group's first
+-- group-stage match kicks off. A group with no scheduled match yet (teams not
+-- drawn / fixtures not synced) stays open (min over no rows -> null -> infinity).
+create or replace function public.group_pick_open(p_group text)
 returns boolean
 language sql stable security definer set search_path = public
 as $$
-  select now() < coalesce(public.setting_ts('group_picks_lock'), 'infinity'::timestamptz);
+  select now() < coalesce(
+    (select min(m.kickoff)
+       from public.matches m
+       join public.teams t on t.name = m.home_team
+      where m.stage = 'GROUP' and t.group_name = p_group),
+    'infinity'::timestamptz);
 $$;
 
 -- Bracket picks: editable only inside the [open, lock) window set by the admin.
@@ -209,12 +216,24 @@ $$;
 -- ------------------------------------------------------------
 -- SCORING ENGINE (Section 4)
 -- ------------------------------------------------------------
-create or replace function public.calc_match_points(ph int, pa int, ah int, aa int)
+-- The exact-score (bulls-eye) reward grows through the knockout rounds; the
+-- goal-difference (2) and trend (1) tiers stay flat. p_stage defaults to GROUP
+-- so legacy 4-arg calls (e.g. tests) keep working.
+create or replace function public.calc_match_points(ph int, pa int, ah int, aa int, p_stage text default 'GROUP')
 returns int
 language sql immutable
 as $$
   select case
-    when ph = ah and pa = aa                                   then 3  -- bulls-eye
+    when ph = ah and pa = aa then
+      case p_stage
+        when 'R32' then 4
+        when 'R16' then 5
+        when 'QF'  then 6
+        when 'SF'  then 8
+        when '3RD' then 8
+        when 'F'   then 10
+        else 3                                                       -- GROUP
+      end
     when sign(ph - pa) = sign(ah - aa) and ph - pa = ah - aa   then 2  -- exact goal difference
     when sign(ph - pa) = sign(ah - aa)                         then 1  -- correct trend
     else 0
@@ -236,7 +255,7 @@ begin
   end if;
 
   update public.predictions p
-  set points = public.calc_match_points(p.home_goals, p.away_goals, m.home_goals, m.away_goals)
+  set points = public.calc_match_points(p.home_goals, p.away_goals, m.home_goals, m.away_goals, m.stage)
              + case when m.status = 'PEN'
                      and p.penalty_winner is not null
                      and p.penalty_winner = m.penalty_winner
@@ -250,7 +269,7 @@ $$;
 
 -- ------------------------------------------------------------
 -- LEADERBOARD (Section 7) — aggregates only, never raw hidden picks.
--- Tie-breakers: bullseyes, champion guessed, group-stage points.
+-- Tie-breakers: bullseyes, group-stage points.
 -- ------------------------------------------------------------
 create or replace view public.leaderboard as
 with mp as (
@@ -269,34 +288,18 @@ gw as (
   join public.tournament_results r
     on r.kind = 'GROUP_WINNER' and r.group_name = g.group_name and r.team = g.team
   group by g.user_id
-),
-bk as (
-  select b.user_id,
-         sum(case b.round
-               when 'R16'   then 1
-               when 'QF'    then 2
-               when 'SF'    then 3
-               when 'F'     then 5
-               when 'CHAMP' then 8
-             end)                       as pts,
-         bool_or(b.round = 'CHAMP')     as champion_guessed
-  from public.bracket_picks b
-  join public.tournament_results r on r.kind = b.round and r.team = b.team
-  group by b.user_id
 )
 select pr.id                                                            as user_id,
        pr.nickname,
-       coalesce(mp.match_points, 0) + coalesce(gw.pts, 0) + coalesce(bk.pts, 0) as total_points,
+       coalesce(mp.match_points, 0) + coalesce(gw.pts, 0)               as total_points,
        coalesce(mp.match_points, 0)                                     as match_points,
-       coalesce(gw.pts, 0) + coalesce(bk.pts, 0)                        as tournament_points,
+       coalesce(gw.pts, 0)                                              as tournament_points,
        coalesce(mp.bullseyes, 0)                                        as bullseyes,
-       coalesce(bk.champion_guessed, false)                             as champion_guessed,
        coalesce(mp.group_stage_points, 0)                               as group_stage_points
 from public.profiles pr
 left join mp on mp.user_id = pr.id
 left join gw on gw.user_id = pr.id
-left join bk on bk.user_id = pr.id
-order by total_points desc, bullseyes desc, champion_guessed desc, group_stage_points desc;
+order by total_points desc, bullseyes desc, group_stage_points desc;
 
 grant select on public.leaderboard to authenticated;
 
@@ -360,20 +363,21 @@ grant insert (user_id, match_id, home_goals, away_goals, penalty_winner)
 grant update (user_id, match_id, home_goals, away_goals, penalty_winner)
   on public.predictions to authenticated;
 
--- Group winner picks: same blind + lock rules, tournament-level.
+-- Group winner picks: same blind + lock rules, but per group — each group's
+-- pick locks (and its picks go public) when that group's first match kicks off.
 create policy "gw select" on public.group_winner_picks
   for select to authenticated
-  using (user_id = auth.uid() or not public.group_picks_open());
+  using (user_id = auth.uid() or not public.group_pick_open(group_name));
 create policy "gw insert" on public.group_winner_picks
   for insert to authenticated
-  with check (user_id = auth.uid() and public.group_picks_open());
+  with check (user_id = auth.uid() and public.group_pick_open(group_name));
 create policy "gw update" on public.group_winner_picks
   for update to authenticated
-  using (user_id = auth.uid() and public.group_picks_open())
-  with check (user_id = auth.uid() and public.group_picks_open());
+  using (user_id = auth.uid() and public.group_pick_open(group_name))
+  with check (user_id = auth.uid() and public.group_pick_open(group_name));
 create policy "gw delete" on public.group_winner_picks
   for delete to authenticated
-  using (user_id = auth.uid() and public.group_picks_open());
+  using (user_id = auth.uid() and public.group_pick_open(group_name));
 
 -- Bracket picks: editable only in the open window.
 create policy "bracket select" on public.bracket_picks

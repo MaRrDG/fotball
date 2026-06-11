@@ -51,6 +51,7 @@ async function upsertMatches(db: Admin, matches: FdMatch[]) {
   if (matches.length === 0) return;
   const { error } = await db.from("matches").upsert(matches.map(matchToRow));
   if (error) throw new Error(`upsert matches: ${error.message}`);
+  console.log(`[sync] upserted ${matches.length} matches`);
 }
 
 /** Team → group mapping, derived from group-stage fixtures (0 extra requests). */
@@ -88,6 +89,11 @@ async function scorePendingMatches(db: Admin): Promise<number> {
     .eq("scored", false);
   if (error) throw new Error(`load pending: ${error.message}`);
 
+  if (pending?.length) {
+    console.log(
+      `[sync] scoring ${pending.length} finished match(es): ${pending.map((m) => m.id).join(", ")}`
+    );
+  }
   for (const m of pending ?? []) {
     const { error: rpcError } = await db.rpc("score_match", { p_match_id: m.id });
     if (rpcError) throw new Error(`score_match(${m.id}): ${rpcError.message}`);
@@ -199,6 +205,11 @@ export async function pollSync() {
   const lastFetch = await getSetting(db, "last_fetch_date");
   const needsDailyFetch = lastFetch !== today;
 
+  console.log(
+    `[sync] poll: today=${today} todaysMatches=${(todays ?? []).length} ` +
+      `lastFetch=${lastFetch ?? "none"} needsDailyFetch=${needsDailyFetch}`
+  );
+
   // "Live window": from 10 min before kick-off until the API reports a final
   // status (a match practically never exceeds ~3.5h with ET + pens).
   const liveWindow = (todays ?? []).some((m) => {
@@ -209,6 +220,8 @@ export async function pollSync() {
 
   let fetched = false;
   if ((todays ?? []).length > 0 && (needsDailyFetch || liveWindow)) {
+    const reason = needsDailyFetch ? "daily fetch" : "live window";
+    console.log(`[sync] calling football-data for ${today} (${reason})`);
     const matches = await fetchMatchesByDate(today);
     await upsertMatches(db, matches);
     await upsertTeams(db, matches);
@@ -216,12 +229,17 @@ export async function pollSync() {
     fetched = true;
   } else if (needsDailyFetch) {
     // No matches today — mark the day done without spending a request.
+    console.log(`[sync] no matches today; marking ${today} done without an API call`);
     await setSetting(db, "last_fetch_date", today);
+  } else {
+    console.log(`[sync] nothing to fetch this tick (liveWindow=${liveWindow})`);
   }
 
   const scoredCount = await scorePendingMatches(db);
   await updateTournamentResults(db);
   const groupWinnersFilled = await maybeFillGroupWinners(db);
 
-  return { fetched, liveWindow, scored: scoredCount, groupWinnersFilled };
+  const result = { fetched, liveWindow, scored: scoredCount, groupWinnersFilled };
+  console.log(`[sync] poll done: ${JSON.stringify(result)}`);
+  return result;
 }

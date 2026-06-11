@@ -23,14 +23,22 @@ function authorized(request: NextRequest): boolean {
 // function itself decides whether a football-data.org request is actually needed.
 export async function GET(request: NextRequest) {
   if (!authorized(request)) {
+    // Surfaces the most common misconfig: the secret missing on the server.
+    console.warn(
+      `[cron] unauthorized sync request (CRON_SECRET ${process.env.CRON_SECRET ? "is set" : "is MISSING"})`
+    );
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now();
+  console.log(`[cron] sync tick started at ${new Date(startedAt).toISOString()}`);
   try {
     const result = await pollSync();
+    console.log(`[cron] sync ok in ${Date.now() - startedAt}ms`, JSON.stringify(result));
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    console.error("sync failed:", e);
+    // Log the full error in the function logs; the response stays generic.
+    console.error(`[cron] sync failed after ${Date.now() - startedAt}ms:`, e);
     return NextResponse.json({ ok: false, error: "internal error" }, { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { matchIsOpen, isFinished, type Match, type Prediction, STAGE_LABELS } from "@/lib/types";
+import { formatRo } from "@/lib/datetime";
 import { LockIcon, TargetIcon } from "@/components/icons";
 
 interface Props {
@@ -61,7 +62,7 @@ export function PredictionRow({ match, prediction, userId }: Props) {
             {STAGE_LABELS[match.stage]}
           </span>
           <span className="tag">
-            {kickoff.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+            {formatRo(kickoff, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
           </span>
         </span>
         <span className="tag">
@@ -153,10 +154,15 @@ export function PredictionRow({ match, prediction, userId }: Props) {
       <div className="flex items-center justify-between border-t border-line/50 bg-pitch/30 px-3 py-2 text-xs">
         {open ? (
           <>
-            <span className="text-muted">
-              Locks T-30
-              {error && <span className="ml-2 font-bold text-danger">{error}</span>}
-              {saved && <span className="ml-2 font-bold text-volt">Saved ✓</span>}
+            <span className="flex items-center gap-3">
+              <span className="text-muted">
+                Locks T-30
+                {error && <span className="ml-2 font-bold text-danger">{error}</span>}
+                {saved && <span className="ml-2 font-bold text-volt">Saved ✓</span>}
+              </span>
+              <Link href={`/match/${match.id}`} className="font-bold text-volt hover:underline">
+                Match page →
+              </Link>
             </span>
             <button
               onClick={save}

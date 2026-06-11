@@ -47,7 +47,6 @@ export interface LeaderboardRow {
   match_points: number;
   tournament_points: number;
   bullseyes: number;
-  champion_guessed: boolean;
   group_stage_points: number;
 }
 
