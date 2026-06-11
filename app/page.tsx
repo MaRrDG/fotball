@@ -51,6 +51,8 @@ export default async function MatchesPage({
       round_label: "A",
       home_team: "Romania",
       away_team: "Brazil",
+      home_crest: "https://crests.football-data.org/811.svg",
+      away_crest: "https://crests.football-data.org/764.svg",
       home_goals: 2,
       away_goals: 1,
       status: "LIVE",

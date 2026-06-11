@@ -6,6 +6,7 @@ import { matchIsOpen, isFinished, matchIsLive, STAGE_LABELS, type Match } from "
 import { formatRo } from "@/lib/datetime";
 import { EyeOffIcon, TargetIcon } from "@/components/icons";
 import { LiveRefresh } from "@/components/live-refresh";
+import { TeamCrest } from "@/components/team-crest";
 
 export const dynamic = "force-dynamic";
 
@@ -69,8 +70,11 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </div>
         <div className="panel rounded-t-none border-t-0 p-6">
           <div className="flex items-center justify-center gap-5">
-            <span className="display flex-1 text-right text-3xl leading-tight">
-              {match.home_team ?? "TBD"}
+            <span className="flex flex-1 items-center justify-end gap-3">
+              <span className="display text-right text-3xl leading-tight">
+                {match.home_team ?? "TBD"}
+              </span>
+              <TeamCrest src={match.home_crest} className="h-9 w-9" />
             </span>
             <span className="slant display bg-pitch px-5 py-2 text-5xl leading-none">
               {match.home_goals !== null || live ? (
@@ -83,8 +87,11 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 <span className="text-muted">VS</span>
               )}
             </span>
-            <span className="display flex-1 text-left text-3xl leading-tight">
-              {match.away_team ?? "TBD"}
+            <span className="flex flex-1 items-center gap-3">
+              <TeamCrest src={match.away_crest} className="h-9 w-9" />
+              <span className="display text-left text-3xl leading-tight">
+                {match.away_team ?? "TBD"}
+              </span>
             </span>
           </div>
           {match.status === "PEN" && match.penalty_winner && (
@@ -96,10 +103,16 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             </p>
           )}
           {live && (
-            <p className="tag mt-3 text-center !text-danger">
-              <span className="live-dot">●</span>{" "}
-              {match.status === "NS" ? "Live" : match.status}
-            </p>
+            <>
+              <p className="tag mt-3 text-center !text-danger">
+                <span className="live-dot">●</span>{" "}
+                {match.status === "NS" ? "Live" : match.status}
+              </p>
+              <p className="mt-1 text-center text-xs text-muted">
+                Live score is delayed — the free data feed may only update it at
+                half-time or full-time
+              </p>
+            </>
           )}
         </div>
       </div>

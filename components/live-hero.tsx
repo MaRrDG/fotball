@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { STAGE_LABELS, type Match, type Prediction } from "@/lib/types";
+import { TeamCrest } from "@/components/team-crest";
 
 interface Props {
   matches: Match[];
@@ -28,7 +29,7 @@ export function LiveHero({ matches, predictions }: Props) {
           <span className="live-dot">●</span> Match in progress
         </span>
         <span className="h-px flex-1 bg-danger/30" />
-        <span className="tag">score updates automatically</span>
+        <span className="tag">score may update only at half-time / full-time ( due to API limitations )</span>
       </h2>
 
       <div className="flex flex-col gap-4">
@@ -50,16 +51,22 @@ export function LiveHero({ matches, predictions }: Props) {
 
               {/* big scoreboard */}
               <div className="flex items-center gap-4 px-5 py-6">
-                <span className="display flex-1 truncate text-right text-2xl leading-none sm:text-3xl">
-                  {m.home_team ?? "TBD"}
+                <span className="flex flex-1 items-center justify-end gap-2.5 overflow-hidden">
+                  <span className="display truncate text-right text-2xl leading-none sm:text-3xl">
+                    {m.home_team ?? "TBD"}
+                  </span>
+                  <TeamCrest src={m.home_crest} className="h-7 w-7" />
                 </span>
                 <span className="slant display min-w-28 bg-pitch px-5 py-2 text-center text-4xl leading-none sm:text-5xl">
                   <span className="text-volt">{m.home_goals ?? 0}</span>
                   <span className="mx-1.5 text-muted">:</span>
                   <span className="text-volt">{m.away_goals ?? 0}</span>
                 </span>
-                <span className="display flex-1 truncate text-2xl leading-none sm:text-3xl">
-                  {m.away_team ?? "TBD"}
+                <span className="flex flex-1 items-center gap-2.5 overflow-hidden">
+                  <TeamCrest src={m.away_crest} className="h-7 w-7" />
+                  <span className="display truncate text-2xl leading-none sm:text-3xl">
+                    {m.away_team ?? "TBD"}
+                  </span>
                 </span>
               </div>
 

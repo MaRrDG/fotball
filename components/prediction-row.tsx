@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { matchIsOpen, isFinished, type Match, type Prediction, STAGE_LABELS } from "@/lib/types";
 import { formatRo } from "@/lib/datetime";
 import { LockIcon, TargetIcon } from "@/components/icons";
+import { TeamCrest } from "@/components/team-crest";
 
 interface Props {
   match: Match;
@@ -85,8 +86,11 @@ export function PredictionRow({ match, prediction, userId }: Props) {
 
       {/* scoreboard row */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <span className="display flex-1 truncate text-right text-lg leading-none">
-          {match.home_team ?? "TBD"}
+        <span className="flex flex-1 items-center justify-end gap-2 overflow-hidden">
+          <span className="display truncate text-right text-lg leading-none">
+            {match.home_team ?? "TBD"}
+          </span>
+          <TeamCrest src={match.home_crest} className="h-5 w-5" />
         </span>
 
         {open ? (
@@ -125,8 +129,11 @@ export function PredictionRow({ match, prediction, userId }: Props) {
           </span>
         )}
 
-        <span className="display flex-1 truncate text-lg leading-none">
-          {match.away_team ?? "TBD"}
+        <span className="flex flex-1 items-center gap-2 overflow-hidden">
+          <TeamCrest src={match.away_crest} className="h-5 w-5" />
+          <span className="display truncate text-lg leading-none">
+            {match.away_team ?? "TBD"}
+          </span>
         </span>
       </div>
 

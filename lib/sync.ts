@@ -38,6 +38,8 @@ function matchToRow(m: FdMatch) {
     round_label: m.group ?? m.stage,
     home_team: m.homeTeam.name,
     away_team: m.awayTeam.name,
+    home_crest: m.homeTeam.crest,
+    away_crest: m.awayTeam.crest,
     home_goals: home,
     away_goals: away,
     status,

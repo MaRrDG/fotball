@@ -7,6 +7,7 @@ export const COMPETITION = "WC"; // FIFA World Cup
 export interface FdTeam {
   id: number | null;
   name: string | null;
+  crest: string | null; // e.g. https://crests.football-data.org/769.svg
 }
 
 export interface FdMatch {

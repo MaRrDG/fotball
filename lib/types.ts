@@ -10,6 +10,8 @@ export interface Match {
   round_label: string | null;
   home_team: string | null;
   away_team: string | null;
+  home_crest: string | null;
+  away_crest: string | null;
   home_goals: number | null;
   away_goals: number | null;
   status: string;
