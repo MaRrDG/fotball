@@ -62,11 +62,11 @@ export function isFinished(status: string): boolean {
 }
 
 export const BRACKET_ROUNDS: { round: BracketRound; label: string; slots: number; points: number }[] = [
-  { round: "R16", label: "Round of 16", slots: 16, points: 5 },
-  { round: "QF", label: "Quarter-finals", slots: 8, points: 10 },
-  { round: "SF", label: "Semi-finals", slots: 4, points: 20 },
-  { round: "F", label: "Final", slots: 2, points: 30 },
-  { round: "CHAMP", label: "World Champion", slots: 1, points: 50 },
+  { round: "R16", label: "Round of 16", slots: 16, points: 1 },
+  { round: "QF", label: "Quarter-finals", slots: 8, points: 2 },
+  { round: "SF", label: "Semi-finals", slots: 4, points: 3 },
+  { round: "F", label: "Final", slots: 2, points: 5 },
+  { round: "CHAMP", label: "World Champion", slots: 1, points: 8 },
 ];
 
 export const STAGE_LABELS: Record<Stage, string> = {

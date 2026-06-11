@@ -214,9 +214,9 @@ returns int
 language sql immutable
 as $$
   select case
-    when ph = ah and pa = aa                                   then 5  -- bulls-eye
-    when sign(ph - pa) = sign(ah - aa) and ph - pa = ah - aa   then 3  -- exact goal difference
-    when sign(ph - pa) = sign(ah - aa)                         then 2  -- correct trend
+    when ph = ah and pa = aa                                   then 3  -- bulls-eye
+    when sign(ph - pa) = sign(ah - aa) and ph - pa = ah - aa   then 2  -- exact goal difference
+    when sign(ph - pa) = sign(ah - aa)                         then 1  -- correct trend
     else 0
   end;
 $$;
@@ -240,7 +240,7 @@ begin
              + case when m.status = 'PEN'
                      and p.penalty_winner is not null
                      and p.penalty_winner = m.penalty_winner
-                    then 2 else 0 end,   -- penalty shootout bonus
+                    then 1 else 0 end,   -- penalty shootout bonus
       is_bullseye = (p.home_goals = m.home_goals and p.away_goals = m.away_goals)
   where p.match_id = p_match_id;
 
@@ -264,7 +264,7 @@ with mp as (
   group by p.user_id
 ),
 gw as (
-  select g.user_id, count(*) * 10 as pts
+  select g.user_id, count(*) * 3 as pts
   from public.group_winner_picks g
   join public.tournament_results r
     on r.kind = 'GROUP_WINNER' and r.group_name = g.group_name and r.team = g.team
@@ -273,11 +273,11 @@ gw as (
 bk as (
   select b.user_id,
          sum(case b.round
-               when 'R16'   then 5
-               when 'QF'    then 10
-               when 'SF'    then 20
-               when 'F'     then 30
-               when 'CHAMP' then 50
+               when 'R16'   then 1
+               when 'QF'    then 2
+               when 'SF'    then 3
+               when 'F'     then 5
+               when 'CHAMP' then 8
              end)                       as pts,
          bool_or(b.round = 'CHAMP')     as champion_guessed
   from public.bracket_picks b

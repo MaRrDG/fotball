@@ -7,24 +7,24 @@ export const dynamic = "force-dynamic";
 
 const MATCH_POINTS = [
   {
-    pts: 5,
+    pts: 3,
     name: "Bulls-eye",
     desc: "Exact score.",
     example: "You said 2–1, it ended 2–1.",
     tone: "text-gold",
   },
   {
-    pts: 3,
+    pts: 2,
     name: "Goal difference",
     desc: "Right outcome and the exact goal difference.",
     example: "You said 3–1, it ended 2–0 — both are wins by two.",
     tone: "text-volt",
   },
   {
-    pts: 2,
+    pts: 1,
     name: "Trend",
-    desc: "Right winner (or draw), wrong numbers.",
-    example: "You said 1–0, it ended 3–2.",
+    desc: "Right winner, wrong margin.",
+    example: "You said 1–0, it ended 3–0.",
     tone: "text-chalk",
   },
   {
@@ -37,11 +37,11 @@ const MATCH_POINTS = [
 ];
 
 const BRACKET_POINTS = [
-  { round: "Round of 16", per: 5, slots: 16, max: 80 },
-  { round: "Quarter-finals", per: 10, slots: 8, max: 80 },
-  { round: "Semi-finals", per: 20, slots: 4, max: 80 },
-  { round: "The Final", per: 30, slots: 2, max: 60 },
-  { round: "World Champion", per: 50, slots: 1, max: 50 },
+  { round: "Round of 16", per: 1, slots: 16, max: 16 },
+  { round: "Quarter-finals", per: 2, slots: 8, max: 16 },
+  { round: "Semi-finals", per: 3, slots: 4, max: 12 },
+  { round: "The Final", per: 5, slots: 2, max: 10 },
+  { round: "World Champion", per: 8, slots: 1, max: 8 },
 ];
 
 export default async function RulesPage() {
@@ -81,12 +81,12 @@ export default async function RulesPage() {
           ))}
         </div>
         <div className="panel mt-3 flex items-center gap-4 border-volt/30 p-4">
-          <span className="display text-3xl text-volt">+2</span>
+          <span className="display text-3xl text-volt">+1</span>
           <p className="text-sm">
             <span className="font-bold">Penalty bonus.</span>{" "}
             <span className="text-muted">
               Knockout matches have a &ldquo;who advances on penalties&rdquo; pick. If it goes
-              to a shootout and you named the right survivor, +2 — on top of whatever the
+              to a shootout and you named the right survivor, +1 — on top of whatever the
               score earned you.
             </span>
           </p>
@@ -101,12 +101,12 @@ export default async function RulesPage() {
         </h2>
 
         <div className="panel mt-4 flex items-center gap-4 p-4">
-          <span className="display text-3xl text-volt">+10</span>
+          <span className="display text-3xl text-volt">+3</span>
           <p className="text-sm">
             <span className="font-bold">Per group winner.</span>{" "}
             <span className="text-muted">
               Call the winner of each of the 12 groups before the tournament starts.
-              Max 120 points.
+              Max 36 points.
             </span>
           </p>
         </div>
@@ -135,7 +135,7 @@ export default async function RulesPage() {
           </table>
         </div>
         <p className="mt-2 text-xs text-muted">
-          A team counts the moment it reaches the round — a perfect bracket is worth 350
+          A team counts the moment it reaches the round — a perfect bracket is worth 62
           points on top of your group winners. Track it live on the{" "}
           <Link href="/bracket" className="text-volt hover:underline">
             bracket
@@ -180,7 +180,7 @@ export default async function RulesPage() {
       </section>
 
       {/* ---- tie-breakers & prize ---- */}
-      <section className="mt-10 grid gap-4 sm:grid-cols-2">
+      {/* <section className="mt-10 grid gap-4 sm:grid-cols-2">
         <div className="panel p-4">
           <h3 className="display text-xl text-chalk">Tie-breakers</h3>
           <ol className="mt-2 list-inside list-decimal space-y-1 text-sm text-muted">
@@ -210,7 +210,7 @@ export default async function RulesPage() {
             </li>
           </ul>
         </div>
-      </section>
+      </section> */}
     </div>
   );
 }

@@ -1,33 +1,48 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-function LoginForm() {
+export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(
-    searchParams.get("error") === "invalid_link" ? "That link is invalid or expired." : null
-  );
+  const [nickname, setNickname] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setNotice(null);
+
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { nickname: nickname.trim() } },
+    });
+
     if (error) {
       setError(error.message);
       setLoading(false);
       return;
     }
-    router.push("/");
-    router.refresh();
+
+    // With email confirmation OFF, signUp returns a live session and we're in.
+    // With it ON (requires SMTP in Supabase), there's no session yet — the user
+    // must click the link in their inbox before they can sign in.
+    if (data.session) {
+      router.push("/");
+      router.refresh();
+    } else {
+      setNotice("Account created. Check your email to confirm, then sign in.");
+      setLoading(false);
+    }
   }
 
   return (
@@ -38,12 +53,22 @@ function LoginForm() {
       </div>
       <div className="mt-2 flex items-center gap-2">
         <span className="h-1 w-10 -skew-x-12 bg-volt" />
-        <h1 className="display text-xl text-chalk">Office Predictor</h1>
+        <h1 className="display text-xl text-chalk">Join the league</h1>
       </div>
       <p className="mt-4 mb-8 text-sm text-muted">
-        FIFA World Cup 2026 office pool. Loser buys donuts — that part is real.
+        Pick a nickname — it&apos;s what everyone sees on the leaderboard. Predictions
+        lock before kick-off, so don&apos;t leave it late.
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <input
+          type="text"
+          required
+          maxLength={24}
+          placeholder="Nickname (shown on the leaderboard)"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+          className="field px-3 py-2.5"
+        />
         <input
           type="email"
           required
@@ -55,31 +80,25 @@ function LoginForm() {
         <input
           type="password"
           required
-          placeholder="Password"
+          minLength={8}
+          placeholder="Password (min 8 characters)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="field px-3 py-2.5"
         />
         {error && <p className="text-sm font-semibold text-danger">{error}</p>}
+        {notice && <p className="text-sm font-semibold text-volt">{notice}</p>}
         <button type="submit" disabled={loading} className="btn-volt px-3 py-2.5 text-lg">
-          {loading ? "Signing in..." : "Kick off"}
+          {loading ? "Creating account..." : "Create account"}
         </button>
       </form>
       <p className="mt-6 text-sm text-muted">
-        No account yet?{" "}
-        <Link href="/register" className="text-volt hover:underline">
-          Create one
+        Already in?{" "}
+        <Link href="/login" className="text-volt hover:underline">
+          Sign in
         </Link>
         .
       </p>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
   );
 }
