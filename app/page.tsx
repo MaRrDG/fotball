@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { getUserId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PredictionRow } from "@/components/prediction-row";
+import { LiveHero } from "@/components/live-hero";
 import { formatRo } from "@/lib/datetime";
-import type { Match, Prediction } from "@/lib/types";
+import { isFinished, type Match, type Prediction } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,50 @@ export default async function MatchesPage({
     (predictions ?? []).map((p: Prediction) => [p.match_id, p])
   );
 
+  // Matches currently being played get pulled out of the day list and shown
+  // in the live hero instead. "Live" = kicked off within the last ~3.5h and
+  // not yet final — this also covers the gap before the sync cron first
+  // reports IN_PLAY.
+  const nowMs = new Date(nowIso).getTime();
+  const liveMatches = showResults
+    ? []
+    : ((matches ?? []) as Match[]).filter((m) => {
+        if (isFinished(m.status)) return false;
+        if (["POSTPONED", "SUSPENDED", "CANCELLED"].includes(m.status)) return false;
+        const ko = new Date(m.kickoff).getTime();
+        return ko <= nowMs && nowMs - ko <= 3.5 * 3_600_000;
+      });
+  // Dev-only preview: fake live card so the design is visible without a
+  // real match in progress. Never runs in production.
+  if (process.env.NODE_ENV === "development" && !showResults && liveMatches.length === 0) {
+    liveMatches.push({
+      id: -1,
+      kickoff: new Date(nowMs - 37 * 60_000).toISOString(),
+      stage: "GROUP",
+      round_label: "A",
+      home_team: "Romania",
+      away_team: "Brazil",
+      home_goals: 2,
+      away_goals: 1,
+      status: "LIVE",
+      penalty_winner: null,
+      scored: false,
+    });
+  }
+
+  const liveIds = new Set(liveMatches.map((m) => m.id));
+  const livePreds: Record<number, Prediction> = {};
+  for (const m of liveMatches) {
+    const p = predByMatch.get(m.id);
+    if (p) livePreds[m.id] = p;
+  }
+
   // Group by calendar day for display.
   const byDay = new Map<string, Match[]>();
   for (const m of (matches ?? []) as Match[]) {
+    if (liveIds.has(m.id)) continue;
+    // Upcoming view: a finished match belongs to the Results tab only.
+    if (!showResults && isFinished(m.status)) continue;
     const day = formatRo(m.kickoff, {
       weekday: "long",
       month: "long",
@@ -73,7 +115,11 @@ export default async function MatchesPage({
         </div>
       </div>
 
-      {byDay.size === 0 && (
+      {liveMatches.length > 0 && (
+        <LiveHero matches={liveMatches} predictions={livePreds} />
+      )}
+
+      {byDay.size === 0 && liveMatches.length === 0 && (
         <div className="panel rise p-8 text-center">
           <p className="display text-xl text-chalk">No matches yet</p>
           <p className="mt-1 text-sm text-muted">

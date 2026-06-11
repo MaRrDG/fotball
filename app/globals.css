@@ -159,6 +159,42 @@ main, header, footer {
   animation: pulse-live 1.4s ease-in-out infinite;
 }
 
+/* in-progress match card: floodlit red glow + passing light sweep */
+@keyframes live-glow {
+  0%, 100% {
+    border-color: rgba(255, 93, 77, 0.35);
+    box-shadow: 0 0 0 1px rgba(255, 93, 77, 0.12), 0 0 22px rgba(255, 93, 77, 0.08);
+  }
+  50% {
+    border-color: rgba(255, 93, 77, 0.7);
+    box-shadow: 0 0 0 1px rgba(255, 93, 77, 0.3), 0 0 42px rgba(255, 93, 77, 0.22);
+  }
+}
+.live-card {
+  animation: live-glow 2.8s ease-in-out infinite;
+}
+
+@keyframes live-sweep {
+  0% { left: -18%; }
+  60%, 100% { left: 118%; }
+}
+.live-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -18%;
+  width: 12%;
+  pointer-events: none;
+  transform: skewX(-18deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(240, 246, 238, 0.05) 50%,
+    transparent
+  );
+  animation: live-sweep 4.5s ease-in-out infinite;
+}
+
 @keyframes ticker {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
@@ -178,7 +214,7 @@ main, header, footer {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise, .live-dot, .ticker-track, .trophy-glow {
+  .rise, .live-dot, .ticker-track, .trophy-glow, .live-card, .live-sweep {
     animation: none;
   }
 }

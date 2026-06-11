@@ -160,7 +160,7 @@ export function PredictionRow({ match, prediction, userId }: Props) {
                 {error && <span className="ml-2 font-bold text-danger">{error}</span>}
                 {saved && <span className="ml-2 font-bold text-volt">Saved ✓</span>}
               </span>
-              <Link href={`/match/${match.id}`} className="font-bold text-volt hover:underline">
+              <Link href={`/match/${match.id}`} prefetch={false} className="font-bold text-volt hover:underline">
                 Match page →
               </Link>
             </span>
@@ -188,7 +188,7 @@ export function PredictionRow({ match, prediction, userId }: Props) {
                 </span>
               )}
             </span>
-            <Link href={`/match/${match.id}`} className="font-bold text-volt hover:underline">
+            <Link href={`/match/${match.id}`} prefetch={false} className="font-bold text-volt hover:underline">
               Everyone&apos;s picks →
             </Link>
           </>

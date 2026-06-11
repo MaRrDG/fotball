@@ -85,6 +85,7 @@ function MatchCard({
   return (
     <Link
       href={`/match/${match.id}`}
+      prefetch={false}
       className={`panel relative block w-full transition-all hover:-translate-y-0.5 hover:border-volt hover:shadow-[0_4px_24px_rgba(212,255,63,0.12)] ${tick}`}
     >
       {live && (

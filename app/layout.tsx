@@ -15,19 +15,28 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  title: "WC26 Office Predictor",
-  description: "World Cup 2026 office prediction game",
+  title: "Salut un pariu",
+  description: "da frt",
 };
 
 const TICKER = [
-  "Predictions lock 30 minutes before kick-off",
-  "Nobody sees your picks until the whistle is near",
-  "Exact score +5",
-  "Goal difference +3",
-  "Right winner +2",
-  "Penalty call +2",
-  "Champion call +50",
-  "Winner takes 100%",
+  "Ce citesti aici?",
+  "Hai romania!",
+  "X pauza 2?",
+  "Acum e timpul sa iti faci cont pe superbet.",
+  "Ai n-ai mingea tragi la poarta!",
+  "Vasi decar.",
+  "Hai Otelul!",
+  "O bere ciucas va rog",
+  "Apa bei, apa joci.",
+  "In est nu e ca in vest frt",
+  "Trei puncteee",
+  "Taca taca la tocanaaa",
+  "Am avut si noroc si sansa.",
+  "Daca marcam un gol la inceput, pe urma putem sa jucam si la 0-0.",
+  "Becali e un brand. Eu la Avicola Iasi pot sa fac pui Gigi Becali, daca vreau.",
+  "Miauuuu miaaaaaaauuuu miaaaaaaaau",
+  "Aducetineeeee echipeeee, ca nu avem cu cine sa jucam"
 ];
 
 export default function RootLayout({
