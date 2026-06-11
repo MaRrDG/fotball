@@ -51,9 +51,38 @@ function matchToRow(m: FdMatch) {
 
 async function upsertMatches(db: Admin, matches: FdMatch[]) {
   if (matches.length === 0) return;
-  const { error } = await db.from("matches").upsert(matches.map(matchToRow));
+
+  // Final results are sticky. The API flaps statuses (IN_PLAY -> TIMED ->
+  // IN_PLAY within minutes), so:
+  //   * rows the admin scored by hand (score_locked) are never touched;
+  //   * rows already final (FT/AET/PEN) only accept another FINAL report
+  //     (score corrections), never a live/scheduled one that would drag a
+  //     finished match back in play and wipe its score.
+  const { data: frozen, error: frozenError } = await db
+    .from("matches")
+    .select("id, score_locked")
+    .or("score_locked.eq.true,status.in.(FT,AET,PEN)");
+  if (frozenError) throw new Error(`load frozen matches: ${frozenError.message}`);
+  const frozenById = new Map((frozen ?? []).map((m) => [m.id, m]));
+
+  const rows = [];
+  for (const m of matches) {
+    const local = frozenById.get(m.id);
+    if (local?.score_locked) continue; // admin override wins until unlocked
+    if (local && !isFinished(fdStatus(m))) continue; // no final -> live flap-back
+    // A final report over an already-final row is a correction: force a rescore.
+    rows.push({ ...matchToRow(m), ...(local ? { scored: false } : {}) });
+  }
+  if (rows.length === 0) {
+    console.log(`[sync] all ${matches.length} matches are final/locked; skipping upsert`);
+    return;
+  }
+  const { error } = await db.from("matches").upsert(rows);
   if (error) throw new Error(`upsert matches: ${error.message}`);
-  console.log(`[sync] upserted ${matches.length} matches`);
+  const skipped = matches.length - rows.length;
+  console.log(
+    `[sync] upserted ${rows.length} matches` + (skipped ? ` (skipped ${skipped} final/locked)` : "")
+  );
 }
 
 /** Team → group mapping, derived from group-stage fixtures (0 extra requests). */
@@ -185,6 +214,58 @@ export async function seedSchedule() {
   await updateTournamentResults(db);
 
   return { fixtures: matches.length, teams: teamsSeeded };
+}
+
+/**
+ * Admin manual score override — used when the API lags behind the real result.
+ * Locks the row against sync overwrites, then runs the same scoring engine and
+ * tournament-results derivation a normal sync would.
+ */
+export async function setManualScore(input: {
+  matchId: number;
+  homeGoals: number;
+  awayGoals: number;
+  status: "FT" | "AET" | "PEN";
+  penaltyWinner: "home" | "away" | null;
+}) {
+  const db = createAdminClient();
+
+  const { data: updated, error } = await db
+    .from("matches")
+    .update({
+      home_goals: input.homeGoals,
+      away_goals: input.awayGoals,
+      status: input.status,
+      penalty_winner: input.status === "PEN" ? input.penaltyWinner : null,
+      score_locked: true,
+      scored: false,
+    })
+    .eq("id", input.matchId)
+    .select("id");
+  if (error) throw new Error(`set manual score: ${error.message}`);
+  if (!updated?.length) throw new Error(`match ${input.matchId} not found`);
+
+  console.log(
+    `[sync] manual score for match ${input.matchId}: ` +
+      `${input.homeGoals}-${input.awayGoals} (${input.status})`
+  );
+  const scoredCount = await scorePendingMatches(db);
+  await updateTournamentResults(db);
+  return { scored: scoredCount };
+}
+
+/**
+ * Drop the manual-score lock so the next sync takes the API's version again;
+ * scored is reset so the API data triggers a rescore once it arrives.
+ */
+export async function clearManualScore(matchId: number) {
+  const db = createAdminClient();
+  const { error } = await db
+    .from("matches")
+    .update({ score_locked: false, scored: false })
+    .eq("id", matchId);
+  if (error) throw new Error(`clear manual score: ${error.message}`);
+  return { unlocked: matchId };
 }
 
 /**

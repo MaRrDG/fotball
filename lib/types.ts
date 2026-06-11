@@ -17,6 +17,7 @@ export interface Match {
   status: string;
   penalty_winner: "home" | "away" | null;
   scored: boolean;
+  score_locked: boolean;
 }
 
 export interface Prediction {

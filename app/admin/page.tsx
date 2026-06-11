@@ -11,10 +11,23 @@ export default async function AdminPage() {
   if (!profile.is_admin) redirect("/");
 
   const supabase = await createClient();
-  const [{ count: matchCount }, { count: userCount }] = await Promise.all([
+  const [{ count: matchCount }, { count: userCount }, { data: recentMatches }] = await Promise.all([
     supabase.from("matches").select("id", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
+    // Override candidates: anything already kicked off, newest first.
+    supabase
+      .from("matches")
+      .select("id, kickoff, stage, home_team, away_team, home_goals, away_goals, status, penalty_winner, score_locked")
+      .lte("kickoff", new Date().toISOString())
+      .order("kickoff", { ascending: false })
+      .limit(40),
   ]);
 
-  return <AdminPanel matchCount={matchCount ?? 0} userCount={userCount ?? 0} />;
+  return (
+    <AdminPanel
+      matchCount={matchCount ?? 0}
+      userCount={userCount ?? 0}
+      recentMatches={recentMatches ?? []}
+    />
+  );
 }

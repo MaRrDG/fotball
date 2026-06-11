@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { seedSchedule, pollSync } from "@/lib/sync";
+import { seedSchedule, pollSync, setManualScore, clearManualScore } from "@/lib/sync";
 
 // Admin actions, dispatched on { action, ...payload }. Caller must be a
 // signed-in user whose profile has is_admin = true.
@@ -40,6 +40,49 @@ export async function POST(request: NextRequest) {
         });
         if (error) return NextResponse.json({ error: error.message }, { status: 400 });
         return NextResponse.json({ ok: true, userId: data.user?.id });
+      }
+
+      case "set-score": {
+        const { matchId, homeGoals, awayGoals, status, penaltyWinner } = body;
+        const validGoals = (g: unknown) => Number.isInteger(g) && (g as number) >= 0 && (g as number) <= 99;
+        if (!Number.isInteger(matchId) || !validGoals(homeGoals) || !validGoals(awayGoals)) {
+          return NextResponse.json(
+            { error: "matchId and goals (0-99) required" },
+            { status: 400 }
+          );
+        }
+        if (!["FT", "AET", "PEN"].includes(status)) {
+          return NextResponse.json({ error: "status must be FT, AET or PEN" }, { status: 400 });
+        }
+        if (status === "PEN" && !["home", "away"].includes(penaltyWinner)) {
+          return NextResponse.json(
+            { error: "penaltyWinner (home/away) required when status is PEN" },
+            { status: 400 }
+          );
+        }
+        if (status === "PEN" && homeGoals !== awayGoals) {
+          return NextResponse.json(
+            { error: "a penalty shootout implies a drawn match — goals must be equal" },
+            { status: 400 }
+          );
+        }
+        const result = await setManualScore({
+          matchId,
+          homeGoals,
+          awayGoals,
+          status,
+          penaltyWinner: status === "PEN" ? penaltyWinner : null,
+        });
+        return NextResponse.json({ ok: true, ...result });
+      }
+
+      case "clear-score": {
+        const { matchId } = body;
+        if (!Number.isInteger(matchId)) {
+          return NextResponse.json({ error: "matchId required" }, { status: 400 });
+        }
+        const result = await clearManualScore(matchId);
+        return NextResponse.json({ ok: true, ...result });
       }
 
       default:

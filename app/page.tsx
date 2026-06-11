@@ -58,6 +58,7 @@ export default async function MatchesPage({
       status: "LIVE",
       penalty_winner: null,
       scored: false,
+      score_locked: false,
     });
   }
 
