@@ -36,7 +36,8 @@ const TICKER = [
   "Daca marcam un gol la inceput, pe urma putem sa jucam si la 0-0.",
   "Becali e un brand. Eu la Avicola Iasi pot sa fac pui Gigi Becali, daca vreau.",
   "Miauuuu miaaaaaaauuuu miaaaaaaaau",
-  "Aducetineeeee echipeeee, ca nu avem cu cine sa jucam"
+  "Aducetineeeee echipeeee, ca nu avem cu cine sa jucam",
+  "Repetitie repetitie, repetitie repetitie....",
 ];
 
 export default function RootLayout({
