@@ -72,14 +72,15 @@ export default async function LeaderboardPage() {
       )}
 
       <div className="panel rise overflow-hidden" style={{ "--d": "0.16s" } as React.CSSProperties}>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line bg-pitch/40 text-left">
               <th className="tag px-3 py-2.5">#</th>
               <th className="tag px-3 py-2.5">Player</th>
-              <th className="tag px-3 py-2.5 text-right">Matches ( p )</th>
-              <th className="tag px-3 py-2.5 text-right">Tourney ( p )</th>
-              <th className="tag px-3 py-2.5 text-right" title="Bulls-eyes">
+              <th className="tag hidden px-3 py-2.5 text-right sm:table-cell">Matches ( p )</th>
+              <th className="tag hidden px-3 py-2.5 text-right sm:table-cell">Tourney ( p )</th>
+              <th className="tag hidden px-3 py-2.5 text-right sm:table-cell" title="Bulls-eyes">
                 <TargetIcon className="ml-auto inline-block h-3.5 w-3.5" />
               </th>
               <th className="tag px-3 py-2.5 text-right">Total ( p )</th>
@@ -100,9 +101,9 @@ export default async function LeaderboardPage() {
                     {row.nickname}
                     {row.user_id === userId && <span className="tag ml-2 !text-volt">you</span>}
                   </td>
-                  <td className="px-3 py-2.5 text-right text-muted">{row.match_points}</td>
-                  <td className="px-3 py-2.5 text-right text-muted">{row.tournament_points}</td>
-                  <td className="px-3 py-2.5 text-right text-muted">{row.bullseyes}</td>
+                  <td className="hidden px-3 py-2.5 text-right text-muted sm:table-cell">{row.match_points}</td>
+                  <td className="hidden px-3 py-2.5 text-right text-muted sm:table-cell">{row.tournament_points}</td>
+                  <td className="hidden px-3 py-2.5 text-right text-muted sm:table-cell">{row.bullseyes}</td>
                   <td className="display px-3 py-2.5 text-right text-xl text-volt">
                     {row.total_points}
                   </td>
@@ -111,6 +112,7 @@ export default async function LeaderboardPage() {
             })}
           </tbody>
         </table>
+        </div>
         {rows.length === 0 && <p className="p-6 text-center text-muted">No players yet.</p>}
       </div>
 

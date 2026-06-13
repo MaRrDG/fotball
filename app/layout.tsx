@@ -22,12 +22,15 @@ export const metadata: Metadata = {
 const TICKER = [
   "Ce citesti aici?",
   "Hai romania!",
+  "Omul este o persoana umana",
   "1-1 pauza, 2-0 final",
   "Acum e timpul sa iti faci cont pe superbet.",
   "Ai n-ai mingea tragi la poarta!",
+  "Acum, ce sa va zic, dupa acest rezultat, calificarea este si posibila, si imposibila",
   "Vasi decar.",
   "Hai Otelul!",
   "O bere ciucas va rog",
+  "M-am certat si cu Mitica Dragomir, dar fara jigniri. El m-a facut oligofren, eu l-am facut zdreanta, dar nu ne-am insultat.",
   "Apa bei, apa joci.",
   "In est nu e ca in vest frt",
   "Trei puncteee",
@@ -38,6 +41,10 @@ const TICKER = [
   "Miauuuu miaaaaaaauuuu miaaaaaaaau",
   "Aducetineeeee echipeeee, ca nu avem cu cine sa jucam",
   "Repetitie repetitie, repetitie repetitie....",
+  "Cele 3 M-uri: Munca, Mentalitate si Ambitie",
+  "Ai n-ai mingea, tragi la poarta",
+  "Este un meci de care pe care, dar nu este decisiv.",
+  "Noi facem bine ca sa facem rau"
 ];
 
 export default function RootLayout({
