@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   FdMatch,
   fetchAllMatches,
-  fetchMatchesByDate,
+  fetchMatchesByDateRange,
   fetchStandings,
   fdStage,
   fdStatus,
@@ -277,38 +277,56 @@ export async function pollSync() {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
 
-  // Matches kicking off today (UTC), from the local cache.
+  // Matches kicking off today (UTC) — used only to decide the once-a-day fetch.
   const { data: todays, error } = await db
     .from("matches")
-    .select("id, kickoff, status")
+    .select("id")
     .gte("kickoff", `${today}T00:00:00Z`)
     .lt("kickoff", `${today}T23:59:59Z`);
   if (error) throw new Error(`load today: ${error.message}`);
+
+  // "Live window": from 10 min before kick-off until the API reports a final
+  // status (a match practically never exceeds ~3.5h with ET + pens). Computed
+  // off `now`, NOT the calendar day — a 22:00 UTC kick-off that ends after
+  // midnight UTC stays in the window and keeps getting polled until it reports
+  // final. A day-scoped query would drop it at midnight and leave it stuck
+  // mid-match in the DB (the API's FINISHED never lands, needing a manual fix).
+  const liveFrom = new Date(now.getTime() - 3.5 * 3_600_000).toISOString();
+  const liveTo = new Date(now.getTime() + 10 * 60_000).toISOString();
+  const { data: liveCands, error: liveErr } = await db
+    .from("matches")
+    .select("id, kickoff, status")
+    .gte("kickoff", liveFrom)
+    .lte("kickoff", liveTo);
+  if (liveErr) throw new Error(`load live window: ${liveErr.message}`);
+  const liveMatches = (liveCands ?? []).filter((m) => !isFinished(m.status));
+  const liveWindow = liveMatches.length > 0;
 
   const lastFetch = await getSetting(db, "last_fetch_date");
   const needsDailyFetch = lastFetch !== today;
 
   console.log(
     `[sync] poll: today=${today} todaysMatches=${(todays ?? []).length} ` +
-      `lastFetch=${lastFetch ?? "none"} needsDailyFetch=${needsDailyFetch}`
+      `liveMatches=${liveMatches.length} lastFetch=${lastFetch ?? "none"} ` +
+      `needsDailyFetch=${needsDailyFetch}`
   );
 
-  // "Live window": from 10 min before kick-off until the API reports a final
-  // status (a match practically never exceeds ~3.5h with ET + pens).
-  const liveWindow = (todays ?? []).some((m) => {
-    if (isFinished(m.status)) return false;
-    const ko = new Date(m.kickoff).getTime();
-    return now.getTime() >= ko - 10 * 60_000 && now.getTime() <= ko + 3.5 * 3_600_000;
-  });
-
   let fetched = false;
-  if ((todays ?? []).length > 0 && (needsDailyFetch || liveWindow)) {
+  const dailyFetchDue = (todays ?? []).length > 0 && needsDailyFetch;
+  if (dailyFetchDue || liveWindow) {
+    // One request covers every date we need: today through tomorrow (as the
+    // daily fetch always has), extended back to the date of any live match that
+    // kicked off on an earlier UTC day so a cross-midnight match is re-polled.
+    const tomorrow = new Date(`${today}T00:00:00Z`);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const from = [today, ...liveMatches.map((m) => m.kickoff.slice(0, 10))].sort()[0];
+    const to = tomorrow.toISOString().slice(0, 10);
     const reason = needsDailyFetch ? "daily fetch" : "live window";
-    console.log(`[sync] calling football-data for ${today} (${reason})`);
-    const matches = await fetchMatchesByDate(today);
+    console.log(`[sync] calling football-data for ${from}..${to} (${reason})`);
+    const matches = await fetchMatchesByDateRange(from, to);
     await upsertMatches(db, matches);
     await upsertTeams(db, matches);
-    await setSetting(db, "last_fetch_date", today);
+    if (needsDailyFetch) await setSetting(db, "last_fetch_date", today);
     fetched = true;
   } else if (needsDailyFetch) {
     // No matches today — mark the day done without spending a request.

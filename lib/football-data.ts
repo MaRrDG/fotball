@@ -55,16 +55,21 @@ export async function fetchAllMatches(): Promise<FdMatch[]> {
   return data.matches;
 }
 
+/** Matches in an inclusive UTC date range, YYYY-MM-DD (1 request). */
+export async function fetchMatchesByDateRange(from: string, to: string): Promise<FdMatch[]> {
+  return (
+    await apiGet<{ matches: FdMatch[] }>(`/competitions/${COMPETITION}/matches`, {
+      dateFrom: from,
+      dateTo: to,
+    })
+  ).matches;
+}
+
 /** Matches on a given UTC date, YYYY-MM-DD (1 request — the polling fetch). */
 export async function fetchMatchesByDate(date: string): Promise<FdMatch[]> {
   const next = new Date(`${date}T00:00:00Z`);
   next.setUTCDate(next.getUTCDate() + 1);
-  return (
-    await apiGet<{ matches: FdMatch[] }>(`/competitions/${COMPETITION}/matches`, {
-      dateFrom: date,
-      dateTo: next.toISOString().slice(0, 10),
-    })
-  ).matches;
+  return fetchMatchesByDateRange(date, next.toISOString().slice(0, 10));
 }
 
 /** Group standings (1 request — official group winners after the group stage). */
