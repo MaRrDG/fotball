@@ -37,16 +37,51 @@ export interface FdStandingsGroup {
   table: { position: number; team: { id: number; name: string } }[];
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * fetch with a few retries for transient failures. football-data sits behind a
+ * keep-alive feed that intermittently drops idle TCP connections, so a reused
+ * socket can die mid-request (UND_ERR_SOCKET "other side closed", a TypeError:
+ * fetch failed) before any bytes come back. Those are safe to retry — as are
+ * 429 (rate limit) and 5xx. Backs off 500ms, 1s, 2s.
+ */
 async function apiGet<T>(path: string, params?: Record<string, string>): Promise<T> {
   const qs = params ? `?${new URLSearchParams(params)}` : "";
-  const res = await fetch(`${BASE}${path}${qs}`, {
-    headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_API_KEY! },
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(`football-data ${path} failed: HTTP ${res.status} ${await res.text()}`);
+  const url = `${BASE}${path}${qs}`;
+  const MAX_ATTEMPTS = 4;
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_API_KEY! },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        // Retry rate-limit / server errors; fail fast on 4xx (bad key, etc).
+        if ((res.status === 429 || res.status >= 500) && attempt < MAX_ATTEMPTS) {
+          console.warn(
+            `[football-data] ${path} HTTP ${res.status} (attempt ${attempt}/${MAX_ATTEMPTS}), retrying`
+          );
+          await sleep(500 * 2 ** (attempt - 1));
+          continue;
+        }
+        throw new Error(`football-data ${path} failed: HTTP ${res.status} ${await res.text()}`);
+      }
+      return (await res.json()) as T;
+    } catch (err) {
+      // A network drop surfaces as "TypeError: fetch failed"; the response-error
+      // thrown above is not a TypeError, so it falls straight through to rethrow.
+      if (err instanceof TypeError && attempt < MAX_ATTEMPTS) {
+        console.warn(
+          `[football-data] ${path} ${err.message} (attempt ${attempt}/${MAX_ATTEMPTS}), retrying`
+        );
+        await sleep(500 * 2 ** (attempt - 1));
+        continue;
+      }
+      throw err;
+    }
   }
-  return (await res.json()) as T;
 }
 
 /** All World Cup matches (1 request — seeds the full schedule). */
