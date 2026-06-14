@@ -286,12 +286,17 @@ export async function pollSync() {
   if (error) throw new Error(`load today: ${error.message}`);
 
   // "Live window": from 10 min before kick-off until the API reports a final
-  // status (a match practically never exceeds ~3.5h with ET + pens). Computed
-  // off `now`, NOT the calendar day — a 22:00 UTC kick-off that ends after
-  // midnight UTC stays in the window and keeps getting polled until it reports
-  // final. A day-scoped query would drop it at midnight and leave it stuck
-  // mid-match in the DB (the API's FINISHED never lands, needing a manual fix).
-  const liveFrom = new Date(now.getTime() - 3.5 * 3_600_000).toISOString();
+  // status. Computed off `now`, NOT the calendar day — a 22:00 UTC kick-off that
+  // ends after midnight UTC stays in the window and keeps getting polled until
+  // it reports final. A day-scoped query would drop it at midnight and leave it
+  // stuck mid-match in the DB (the API's FINISHED never lands, needing a manual
+  // fix). The look-back is deliberately generous (24h, not the ~3.5h a match
+  // actually lasts): the free feed often only updates at half-time / full-time
+  // and can report FINISHED long after the final whistle. A tight window would
+  // let a delayed final slip out before its FINISHED was ever fetched, leaving
+  // the match stuck LIVE and unscored. Postponed/suspended/cancelled fixtures
+  // are excluded so they never pin the poller open burning an API call a tick.
+  const liveFrom = new Date(now.getTime() - 24 * 3_600_000).toISOString();
   const liveTo = new Date(now.getTime() + 10 * 60_000).toISOString();
   const { data: liveCands, error: liveErr } = await db
     .from("matches")
@@ -299,7 +304,10 @@ export async function pollSync() {
     .gte("kickoff", liveFrom)
     .lte("kickoff", liveTo);
   if (liveErr) throw new Error(`load live window: ${liveErr.message}`);
-  const liveMatches = (liveCands ?? []).filter((m) => !isFinished(m.status));
+  const DEAD_STATUSES = ["POSTPONED", "SUSPENDED", "CANCELLED"];
+  const liveMatches = (liveCands ?? []).filter(
+    (m) => !isFinished(m.status) && !DEAD_STATUSES.includes(m.status)
+  );
   const liveWindow = liveMatches.length > 0;
 
   const lastFetch = await getSetting(db, "last_fetch_date");

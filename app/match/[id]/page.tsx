@@ -69,14 +69,14 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </span>
         </div>
         <div className="panel rounded-t-none border-t-0 p-6">
-          <div className="flex items-center justify-center gap-5">
-            <span className="flex flex-1 items-center justify-end gap-3">
-              <span className="display text-right text-3xl leading-tight">
+          <div className="flex items-center justify-center gap-2 sm:gap-5">
+            <span className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+              <span className="display truncate text-right text-xl leading-tight sm:text-3xl">
                 {match.home_team ?? "TBD"}
               </span>
-              <TeamCrest src={match.home_crest} className="h-9 w-9" />
+              <TeamCrest src={match.home_crest} className="h-7 w-7 shrink-0 sm:h-9 sm:w-9" />
             </span>
-            <span className="slant display bg-pitch px-5 py-2 text-5xl leading-none">
+            <span className="slant display shrink-0 bg-pitch px-3 py-2 text-3xl leading-none sm:px-5 sm:text-5xl">
               {match.home_goals !== null || live ? (
                 <>
                   <span className="text-volt">{match.home_goals ?? 0}</span>
@@ -87,9 +87,9 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 <span className="text-muted">VS</span>
               )}
             </span>
-            <span className="flex flex-1 items-center gap-3">
-              <TeamCrest src={match.away_crest} className="h-9 w-9" />
-              <span className="display text-left text-3xl leading-tight">
+            <span className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+              <TeamCrest src={match.away_crest} className="h-7 w-7 shrink-0 sm:h-9 sm:w-9" />
+              <span className="display truncate text-left text-xl leading-tight sm:text-3xl">
                 {match.away_team ?? "TBD"}
               </span>
             </span>
