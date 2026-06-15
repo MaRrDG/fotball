@@ -23,7 +23,6 @@ type Admin = ReturnType<typeof createAdminClient>;
 
 function matchToRow(m: FdMatch) {
   const status = fdStatus(m);
-  const finished = isFinished(status);
   const { home, away } = fdFinalScore(m);
 
   let penaltyWinner: "home" | "away" | null = null;
@@ -44,8 +43,13 @@ function matchToRow(m: FdMatch) {
     away_goals: away,
     status,
     penalty_winner: penaltyWinner,
-    // a finished match must be (re)scored
-    ...(finished ? {} : { scored: false }),
+    // Always emit `scored` so a batched upsert has a uniform column set. A mixed
+    // payload (some rows with the key, some without) makes supabase-js send NULL
+    // for the missing column on inserts, which the NOT NULL `scored` constraint
+    // rejects — failing the whole upsert, so a just-FINISHED match never gets
+    // scored. `false` means "needs (re)scoring": scorePendingMatches picks it up,
+    // and score_match is idempotent, so re-scoring a final row is a no-op.
+    scored: false,
   };
 }
 
@@ -70,8 +74,9 @@ async function upsertMatches(db: Admin, matches: FdMatch[]) {
     const local = frozenById.get(m.id);
     if (local?.score_locked) continue; // admin override wins until unlocked
     if (local && !isFinished(fdStatus(m))) continue; // no final -> live flap-back
-    // A final report over an already-final row is a correction: force a rescore.
-    rows.push({ ...matchToRow(m), ...(local ? { scored: false } : {}) });
+    // matchToRow emits scored:false, so a final report over an already-final row
+    // is treated as a correction and rescored (score_match is idempotent).
+    rows.push(matchToRow(m));
   }
   if (rows.length === 0) {
     console.log(`[sync] all ${matches.length} matches are final/locked; skipping upsert`);

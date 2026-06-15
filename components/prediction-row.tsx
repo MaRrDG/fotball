@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { matchIsOpen, isFinished, type Match, type Prediction, STAGE_LABELS } from "@/lib/types";
+import { matchIsOpen, isFinished, matchIsLive, type Match, type Prediction, STAGE_LABELS } from "@/lib/types";
 import { formatRo } from "@/lib/datetime";
 import { LockIcon, TargetIcon } from "@/components/icons";
 import { TeamCrest } from "@/components/team-crest";
@@ -17,7 +17,10 @@ interface Props {
 export function PredictionRow({ match, prediction, userId }: Props) {
   const open = matchIsOpen(match);
   const finished = isFinished(match.status);
-  const live = !open && !finished && match.status !== "NS";
+  // Live is kickoff-time based, NOT API status: the free feed lags 10-20 min, so
+  // a match in its 2nd minute can still report TIMED (stored as NS). matchIsLive
+  // (same helper the match page uses) goes live at kickoff regardless of the lag.
+  const live = matchIsLive(match);
 
   const [home, setHome] = useState<string>(prediction ? String(prediction.home_goals) : "");
   const [away, setAway] = useState<string>(prediction ? String(prediction.away_goals) : "");

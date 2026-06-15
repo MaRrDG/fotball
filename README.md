@@ -4,14 +4,55 @@ A private World Cup 2026 prediction game for your office. Next.js + Supabase,
 with [football-data.org](https://www.football-data.org) (API v4) as the source
 of truth for fixtures and scores.
 
+![Matchday view — upcoming fixtures with per-match score predictions](docs/matchday.png)
+
 - **Invite-only** — no public sign-up; the admin creates accounts.
 - **Blind predictions** — nobody sees colleagues' picks until a match locks
   (30 min before kick-off). Enforced by Postgres Row Level Security, not just the UI.
 - **Hard deadlines** — the database rejects any write after T-30, whatever the client says.
-- **Automatic scoring** — 5 / 3 / 2 / 0 points per match (+2 penalty-shootout bonus),
-  group winners (10), bracket (R16 5 · QF 10 · SF 20 · Final 30 · Champion 50).
+- **Automatic scoring** — per-match points scale with the round, plus a group-winner
+  side bet. The database does the math (see [Scoring](#scoring) below).
 - **Free-tier friendly** — the app never calls football-data.org from page loads; a
   rationed sync job stays far under the free tier's 10 requests/minute cap.
+
+## Scoring
+
+Two ways to earn points — predict each match, and predict the 12 group winners.
+All scoring is automatic; the formula lives in the database (`calc_match_points` /
+`score_match` in [`supabase/schema.sql`](supabase/schema.sql)), so nobody argues with it.
+
+**Per match** — predict the score after 90′ (or 120′ if it goes to extra time;
+penalty-shootout goals never count toward the score):
+
+| Tier | Points | When |
+|---|---|---|
+| **Bulls-eye** | 3–10 | Exact score. Worth more the deeper the round — see table below. |
+| **Goal difference** | 2 | Right winner *and* the exact winning margin (decisive results only — a draw has no margin). |
+| **Trend** | 1 | Right outcome only, including correctly calling a draw. |
+| **Air ball** | 0 | Wrong outcome. |
+
+The bulls-eye (exact-score) reward climbs through the knockout rounds; the
+goal-difference (+2) and trend (+1) tiers stay flat at every stage:
+
+| Stage | Exact score |
+|---|---|
+| Group stage | +3 |
+| Round of 32 | +4 |
+| Round of 16 | +5 |
+| Quarter-final | +6 |
+| Semi-final / 3rd place | +8 |
+| Final | +10 |
+
+**Penalty bonus (+1)** — knockout matches carry a "who advances on penalties" pick.
+If the match goes to a shootout and you named the right survivor, +1 on top of
+whatever the score earned.
+
+**Group winners (+3 each)** — call the winner of each of the 12 groups before the
+tournament starts. Max 36 points. This is the only tournament-level pick: the
+knockout bracket builds itself automatically as rounds are played and carries no points.
+
+**Tie-breakers** — total points, then most bulls-eyes (exact scores), then most
+group-stage points.
 
 ## 1. Set up Supabase
 
@@ -111,6 +152,3 @@ deploy. Point your colleagues at the URL, collect the buy-ins, print the trophy.
   (column-level grants); `points` is written exclusively by the `score_match()` function,
   which runs only after football-data.org reports a final status.
 
-## Prize pool (off-platform, per the office rules)
-
-20 × $10 buy-in → 1st: 60% + trophy · 2nd: 25% · 3rd: 15% · last place brings donuts.
