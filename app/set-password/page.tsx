@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -9,6 +9,21 @@ export default function SetPasswordPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // Only reachable with a valid session (set by the invite/recovery link).
+  // Without one there is nothing to update, so bounce back to login rather
+  // than render a form that can only fail.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        router.replace("/login?error=invalid_link");
+        return;
+      }
+      setChecking(false);
+    });
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,9 +36,14 @@ export default function SetPasswordPage() {
       setLoading(false);
       return;
     }
+    // Revoke any other sessions so a stolen/old session can't outlive a reset.
+    // The current session stays valid, so the user continues uninterrupted.
+    await supabase.auth.signOut({ scope: "others" });
     router.push("/profile");
     router.refresh();
   }
+
+  if (checking) return null;
 
   return (
     <div className="mx-auto mt-16 max-w-sm">

@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Refreshes the Supabase session cookie and walls off the app:
-// everything except /login, /register, /auth/* and the cron route requires a session.
+// everything except /login, /register, /forgot-password, /auth/*, /api/auth/*
+// and the cron route requires a session.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -33,7 +34,9 @@ export async function proxy(request: NextRequest) {
   const isPublic =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth") ||
+    pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/cron");
 
   if (!user && !isPublic) {

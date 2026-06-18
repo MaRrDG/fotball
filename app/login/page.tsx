@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +14,21 @@ function LoginForm() {
     searchParams.get("error") === "invalid_link" ? "That link is invalid or expired." : null
   );
   const [loading, setLoading] = useState(false);
+
+  // Supabase recovery emails using the implicit flow land here as
+  // /login#access_token=...&type=recovery. The browser client auto-parses the
+  // hash, establishes the session, and fires PASSWORD_RECOVERY — at which point
+  // we send the user on to choose a new password.
+  useEffect(() => {
+    const supabase = createClient();
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        router.push("/set-password");
+        router.refresh();
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,6 +80,11 @@ function LoginForm() {
           {loading ? "Signing in..." : "Kick off"}
         </button>
       </form>
+      <p className="mt-4 text-sm text-muted">
+        <Link href="/forgot-password" className="text-volt hover:underline">
+          Forgot your password?
+        </Link>
+      </p>
       <p className="mt-6 text-sm text-muted">
         No account yet?{" "}
         <Link href="/register" className="text-volt hover:underline">
