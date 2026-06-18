@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { type Team } from "@/lib/types";
 import { formatRo } from "@/lib/datetime";
@@ -49,10 +49,49 @@ export function TournamentForm({
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [teams]);
+  const allGroupsLocked = useMemo(
+    () => groups.every(([group]) => !isGroupOpen(group)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groups, groupLocks, now]
+  );
 
   const [groupPicks, setGroupPicks] = useState<Record<string, string>>(initialGroupPicks);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [allPicks, setAllPicks] = useState<
+    Array<{ group_name: string; team: string; nickname: string }>
+  >([]);
+  const [loadingAllPicks, setLoadingAllPicks] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchAllPicks = async () => {
+      const lockedGroups = Object.entries(groupLocks)
+        .filter(([_, lockTime]) => now >= new Date(lockTime).getTime())
+        .map(([group]) => group);
+
+      if (lockedGroups.length === 0) return;
+
+      setLoadingAllPicks(true);
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("group_winner_picks")
+        .select("group_name, team, profiles!inner(nickname)")
+        .in("group_name", lockedGroups);
+
+      if (!error && data) {
+        const picks = data.map((row: any) => ({
+          group_name: row.group_name,
+          team: row.team,
+          nickname: row.profiles.nickname,
+        }));
+        setAllPicks(picks);
+      }
+      setLoadingAllPicks(false);
+    };
+
+    fetchAllPicks();
+  }, [groupLocks, now]);
 
   async function saveGroupPicks() {
     setSaving(true);
@@ -161,6 +200,72 @@ export function TournamentForm({
       </section>
 
       {message && <p className="mt-4 text-sm font-semibold text-volt">{message}</p>}
+
+      {allGroupsLocked && allPicks.length > 0 && (
+        <section className="mt-12 border-t border-line pt-12">
+          <div className="mb-6 flex items-center justify-between border-b border-line pb-2">
+            <h2 className="display flex items-center gap-3 text-2xl">
+              <span className="slant bg-volt px-2 py-0.5 text-base text-pitch">02</span>
+              Everyone&apos;s picks
+            </h2>
+            <span className="tag">Once locked, picks are public</span>
+          </div>
+          <div className="space-y-2">
+            {groups
+              .filter(([group]) => allPicks.some((p) => p.group_name === group))
+              .map(([group, _]) => {
+                const groupPicksData = allPicks.filter((p) => p.group_name === group);
+                const isExpanded = expandedGroups.has(group);
+
+                return (
+                  <div key={group} className="border border-line rounded">
+                    <button
+                      onClick={() => {
+                        const newExpanded = new Set(expandedGroups);
+                        if (newExpanded.has(group)) {
+                          newExpanded.delete(group);
+                        } else {
+                          newExpanded.add(group);
+                        }
+                        setExpandedGroups(newExpanded);
+                      }}
+                      className="w-full flex items-center justify-between bg-panel px-4 py-3 hover:bg-panel/80 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-muted">Group {group}</span>
+                        <span className="text-xs text-muted/60">
+                          {groupPicksData.length} {groupPicksData.length === 1 ? "pick" : "picks"}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-volt transition-transform ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                      >
+                        ▼
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-line divide-y divide-line bg-pitch/50">
+                        {groupPicksData
+                          .sort((a, b) => a.nickname.localeCompare(b.nickname))
+                          .map((pick) => (
+                            <div
+                              key={`${pick.group_name}-${pick.nickname}`}
+                              className="flex items-center justify-between px-4 py-3 text-sm"
+                            >
+                              <span className="text-chalk">{pick.nickname}</span>
+                              <span className="font-semibold text-volt">{pick.team}</span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
