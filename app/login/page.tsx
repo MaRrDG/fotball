@@ -16,18 +16,32 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
 
   // Supabase recovery emails using the implicit flow land here as
-  // /login#access_token=...&type=recovery. The browser client auto-parses the
-  // hash, establishes the session, and fires PASSWORD_RECOVERY — at which point
-  // we send the user on to choose a new password.
+  // /login#access_token=...&refresh_token=...&type=recovery. The SSR browser
+  // client defaults to the PKCE flow, so it only auto-detects a ?code= query
+  // param and ignores these hash tokens — we have to parse them and establish
+  // the session ourselves, then send the user on to choose a new password.
   useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash || !hash.includes("access_token")) return;
+    const params = new URLSearchParams(hash.slice(1));
+    if (params.get("type") !== "recovery") return;
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (!access_token || !refresh_token) {
+      setError("That link is invalid or expired.");
+      return;
+    }
+    // Strip the tokens from the URL so they don't linger in history.
+    window.history.replaceState(null, "", window.location.pathname);
     const supabase = createClient();
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        router.push("/set-password");
-        router.refresh();
+    supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+      if (error) {
+        setError("That link is invalid or expired.");
+        return;
       }
+      router.push("/set-password");
+      router.refresh();
     });
-    return () => data.subscription.unsubscribe();
   }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,11 +94,6 @@ function LoginForm() {
           {loading ? "Signing in..." : "Kick off"}
         </button>
       </form>
-      <p className="mt-4 text-sm text-muted">
-        <Link href="/forgot-password" className="text-volt hover:underline">
-          Forgot your password?
-        </Link>
-      </p>
       <p className="mt-6 text-sm text-muted">
         No account yet?{" "}
         <Link href="/register" className="text-volt hover:underline">
