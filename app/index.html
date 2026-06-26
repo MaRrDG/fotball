@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS-Doom: Pure Raycaster Engine from Scratch</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@700&display=swap');
+
+        .doom-font {
+            font-family: 'Courier Prime', monospace;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-red-600">
+
+    <div class="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-2xl space-y-6">
+
+        <!-- Header HUD Area -->
+        <div class="flex flex-col sm:flex-row items-center justify-between border-b border-zinc-800 pb-4 gap-4">
+            <div class="flex items-center gap-3">
+                <span
+                    class="bg-red-600 text-black px-3 py-1 font-black text-xl tracking-wider doom-font rounded shadow-[0_0_15px_rgba(220,38,38,0.4)]">JS-DOOM</span>
+                <span
+                    class="text-xs text-zinc-400 font-mono bg-zinc-950 px-2 py-1 rounded border border-zinc-800">Raycaster
+                    Engine v1.0</span>
+            </div>
+            <div class="flex gap-4 text-xs font-mono text-zinc-400">
+                <div>[WASD / Arrows] <span class="text-zinc-500">Move</span></div>
+                <div>[Space] <span class="text-red-500 font-bold">Fire</span></div>
+                <div>[M] <span class="text-zinc-500">Automap</span></div>
+            </div>
+        </div>
+
+        <!-- Viewport Workspace Layout -->
+        <div
+            class="relative flex flex-col items-center justify-center bg-black rounded-lg border-2 border-zinc-800 overflow-hidden group">
+            <canvas id="gameCanvas" width="640" height="400" class="w-full h-auto max-h-[500px]"></canvas>
+
+            <!-- Splat / Damage Overlay Indicator -->
+            <div id="damageIndicator"
+                class="absolute inset-0 bg-red-600/0 pointer-events-none transition-all duration-100"></div>
+
+            <!-- Click-to-Start Blanket Overlay -->
+            <div id="startScreen"
+                class="absolute inset-0 bg-zinc-950/90 flex flex-col items-center justify-center text-center p-6 cursor-pointer group-hover:border-red-600 transition">
+                <div class="text-red-500 font-black text-3xl tracking-widest mb-2 doom-font animate-pulse">CLICK TO
+                    START</div>
+                <p class="text-sm text-zinc-400 max-w-md">Initializes interactive context and engine audio buffers.
+                    Defeat the Imps and find the exit!</p>
+            </div>
+        </div>
+
+        <!-- Classic Bottom Doom HUD Panel Layout -->
+        <div
+            class="bg-zinc-950 border border-zinc-800 p-4 rounded-lg grid grid-cols-4 text-center font-mono select-none tracking-tight gap-2">
+            <div class="border-r border-zinc-800">
+                <span class="text-[10px] text-zinc-500 block uppercase font-bold">Ammo</span>
+                <span id="hudAmmo" class="text-2xl text-amber-500 font-black tracking-widest">50</span>
+            </div>
+            <div class="border-r border-zinc-800">
+                <span class="text-[10px] text-zinc-500 block uppercase font-bold">Health</span>
+                <span id="hudHealth" class="text-2xl text-red-500 font-black tracking-widest">100%</span>
+            </div>
+            <div class="border-r border-zinc-800">
+                <span class="text-[10px] text-zinc-500 block uppercase font-bold">Armor</span>
+                <span id="hudArmor" class="text-2xl text-blue-400 font-black tracking-widest">0%</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-zinc-500 block uppercase font-bold">Frags</span>
+                <span id="hudFrags" class="text-2xl text-emerald-500 font-black tracking-widest">0</span>
+            </div>
+        </div>
+
+        <!-- System Debug Console Output Log -->
+        <div
+            class="bg-black border border-zinc-800 rounded p-3 text-xs font-mono text-zinc-500 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span id="consoleStatus">Engine standing by... Type IDDQD or IDKFA for cheats.</span>
+            </div>
+            <div id="fpsCounter">FPS: --</div>
+        </div>
+    </div>
+
+    <!-- RAYCASTER SIMULATION SCRIPT ENGINE ENGINE -->
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+
+        // Engine World Map Definitions (1 = Solid Wall, 2 = Blue Wall, 3 = Goal Switch Exit Door)
+        const mapWidth = 16;
+        const mapHeight = 16;
+        const worldMap = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 1, 1, 0, 1, 0, 2, 2, 2, 2, 2, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 2, 0, 0, 0, 2, 0, 1, 1, 1, 1],
+            [1, 0, 1, 0, 1, 0, 2, 2, 0, 2, 2, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+            [1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 3, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        // Entity Setup (Enemies/Sprites)
+        let sprites = [
+            { x: 3.5, y: 3.5, alive: true, type: 'imp', lastShot: 0 },
+            { x: 13.5, y: 2.5, alive: true, type: 'imp', lastShot: 0 },
+            { x: 9.5, y: 7.5, alive: true, type: 'imp', lastShot: 0 },
+            { x: 2.5, y: 12.5, alive: true, type: 'imp', lastShot: 0 }
+        ];
+
+        // Player Parameters Vector State
+        let posX = 2.5, posY = 1.5;
+        let dirX = 1.0, dirY = 0.0;
+        let planeX = 0.0, planeY = 0.66;
+
+        let health = 100;
+        let armor = 0;
+        let ammo = 50;
+        let frags = 0;
+        let isGodMode = false;
+
+        // UI / View State flags
+        let showMap = false;
+        let weaponFrame = 0;
+        let isShooting = false;
+        let keys = {};
+        let lastTime = 0;
+        let audioCtx = null;
+        let engineActive = false;
+        let cheatBuffer = "";
+
+        // Web Audio Procedural Synth Engine
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(freq, type, duration, vol = 0.1) {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                if (type === 'sawtooth') osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + duration);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) { }
+        }
+
+        // Initialize Workspace Interaction Frame bindings
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'KeyM') showMap = !showMap;
+
+            // Collect global input strings for testing cheats
+            if (e.key.length === 1) {
+                cheatBuffer += e.key.toLowerCase();
+                if (cheatBuffer.length > 10) cheatBuffer = cheatBuffer.substring(1);
+                checkCheats();
+            }
+            // Prevent scrolling space defaults
+            if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
+        });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        startScreen.addEventListener('click', () => {
+            initAudio();
+            engineActive = true;
+            startScreen.style.display = 'none';
+            playSound(120, 'square', 0.3);
+            requestAnimationFrame(gameLoop);
+        });
+
+        function checkCheats() {
+            if (cheatBuffer.includes("iddqd")) {
+                isGodMode = !isGodMode;
+                document.getElementById('consoleStatus').innerText = isGodMode ? "🛑 GOD MODE ON (IDDQD)" : "GOD MODE OFF";
+                health = 100;
+                cheatBuffer = "";
+                playSound(440, 'triangle', 0.5);
+            }
+            if (cheatBuffer.includes("idkfa")) {
+                ammo = 999;
+                armor = 200;
+                document.getElementById('consoleStatus').innerText = "🎒 AMMO & ARMOR RESTOCKED (IDKFA)";
+                cheatBuffer = "";
+                playSound(330, 'triangle', 0.5);
+            }
+        }
+
+        function fireWeapon() {
+            if (ammo <= 0 || isShooting) {
+                if (ammo <= 0) playSound(150, 'triangle', 0.1);
+                return;
+            }
+            ammo--;
+            isShooting = true;
+            weaponFrame = 1;
+            playSound(220, 'sawtooth', 0.2, 0.2);
+
+            // Hitscan Ray Check to Center View Column
+            let midRayX = dirX;
+            let midRayY = dirY;
+
+            // Evaluate if an Imp intersects central screen workspace line vector
+            let closestImp = null;
+            let minDist = 999;
+
+            sprites.forEach(sprite => {
+                if (!sprite.alive) return;
+                let sx = sprite.x - posX;
+                let sy = sprite.y - posY;
+                let dist = Math.sqrt(sx * sx + sy * sy);
+
+                // Cross product check to confirm alignment to sight angle vector
+                let dotProduct = (sx * midRayX + sy * midRayY) / dist;
+                if (dotProduct > 0.98 && dist < minDist) {
+                    minDist = dist;
+                    closestImp = sprite;
+                }
+            });
+
+            if (closestImp) {
+                closestImp.alive = false;
+                frags++;
+                document.getElementById('consoleStatus').innerText = "🎯 Slain an Imp creature sector threat.";
+                setTimeout(() => playSound(90, 'sawtooth', 0.4, 0.3), 80);
+            }
+        }
+
+        // Processing Loops
+        function gameLoop(timestamp) {
+            if (!engineActive) return;
+            let dt = (timestamp - lastTime) / 1000;
+            if (isNaN(dt)) dt = 0.1;
+            lastTime = timestamp;
+
+            document.getElementById('fpsCounter').innerText = `FPS: ${Math.round(1 / dt)}`;
+
+            handleInput(dt);
+            updateAI(timestamp);
+            renderRaycaster();
+            if (showMap) renderAutomap();
+            renderWeaponHUD();
+            updateHUDData();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function handleInput(dt) {
+            let moveSpeed = 4.0 * dt;
+            let rotSpeed = 2.5 * dt;
+
+            if (keys['KeyW'] || keys['ArrowUp']) {
+                if (worldMap[Math.floor(posX + dirX * moveSpeed)][Math.floor(posY)] === 0) posX += dirX * moveSpeed;
+                if (worldMap[Math.floor(posX)][Math.floor(posY + dirY * moveSpeed)] === 0) posY += dirY * moveSpeed;
+                checkExitCollision();
+            }
+            if (keys['KeyS'] || keys['ArrowDown']) {
+                if (worldMap[Math.floor(posX - dirX * moveSpeed)][Math.floor(posY)] === 0) posX -= dirX * moveSpeed;
+                if (worldMap[Math.floor(posX)][Math.floor(posY - dirY * moveSpeed)] === 0) posY -= dirY * moveSpeed;
+            }
+            if (keys['KeyD'] || keys['ArrowRight']) { // Rotation matrix transform look right
+                let oldDirX = dirX;
+                dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+                dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+                let oldPlaneX = planeX;
+                planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+                planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+            }
+            if (keys['KeyA'] || keys['ArrowLeft']) { // Rotation matrix transform look left
+                let oldDirX = dirX;
+                dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+                dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+                let oldPlaneX = planeX;
+                planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+                planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+            }
+            if (keys['Space']) {
+                fireWeapon();
+                keys['Space'] = false; // Prevent repeat spam auto-fire loop
+            }
+        }
+
+        function checkExitCollision() {
+            if (worldMap[Math.floor(posX)][Math.floor(posY)] === 3) {
+                playSound(500, 'square', 0.8, 0.4);
+                alert("🏆 EXITED ZONE! LEVEL COMPLETE.\nTotal Frags: " + frags);
+                posX = 2.5; posY = 1.5;
+                dirX = 1.0; dirY = 0.0;
+                planeX = 0.0; planeY = 0.66;
+                sprites.forEach(s => s.alive = true);
+                frags = 0;
+            }
+        }
+
+        function updateAI(timestamp) {
+            sprites.forEach(sprite => {
+                if (!sprite.alive) return;
+                let dx = posX - sprite.x;
+                let dy = posY - sprite.y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Wake state tracking distance parameters
+                if (dist < 7) {
+                    // Primitive vector track step closer to camera
+                    sprite.x += (dx / dist) * 0.8 * (1 / 60);
+                    sprite.y += (dy / dist) * 0.8 * (1 / 60);
+
+                    // Shoot at player every 2.5 seconds roughly
+                    if (timestamp - sprite.lastShot > 2500 && dist < 5) {
+                        sprite.lastShot = timestamp;
+                        if (!isGodMode) {
+                            let dmg = Math.floor(Math.random() * 15) + 5;
+                            health -= dmg;
+                            if (health < 0) health = 0;
+
+                            // Trigger physical damage frame flash indicators
+                            document.getElementById('damageIndicator').className = "absolute inset-0 bg-red-600/40 pointer-events-none";
+                            setTimeout(() => { document.getElementById('damageIndicator').className = "absolute inset-0 bg-red-600/0 pointer-events-none"; }, 80);
+                            playSound(80, 'sawtooth', 0.15, 0.4);
+
+                            if (health <= 0) {
+                                alert("💀 YOU DIED! Restarting operational simulation context...");
+                                health = 100; ammo = 50; frags = 0;
+                                posX = 2.5; posY = 1.5;
+                                sprites.forEach(s => s.alive = true);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRaycaster() {
+            // Render Background ceiling and textured floor flats
+            ctx.fillStyle = '#1e1e24'; // Ceilings
+            ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+            ctx.fillStyle = '#2d2d30'; // Floor base
+            ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+
+            // Z-Buffer array to depth sort sprites relative to projected walls
+            let zBuffer = [];
+
+            // Execute ray computation slice columns across workspace width
+            for (let x = 0; x < canvas.width; x++) {
+                let cameraX = 2 * x / canvas.width - 1;
+                let rayDirX = dirX + planeX * cameraX;
+                let rayDirY = dirY + planeY * cameraX;
+
+                let mapX = Math.floor(posX);
+                let mapY = Math.floor(posY);
+
+                let sideDistX, sideDistY;
+                let deltaDistX = (rayDirX === 0) ? 1e30 : Math.abs(1 / rayDirX);
+                let deltaDistY = (rayDirY === 0) ? 1e30 : Math.abs(1 / rayDirY);
+                let perpWallDist;
+
+                let stepX, stepY;
+                let hit = 0;
+                let side;
+
+                if (rayDirX < 0) { stepX = -1; sideDistX = (posX - mapX) * deltaDistX; }
+                else { stepX = 1; sideDistX = (mapX + 1.0 - posX) * deltaDistX; }
+                if (rayDirY < 0) { stepY = -1; sideDistY = (posY - mapY) * deltaDistY; }
+                else { stepY = 1; sideDistY = (mapY + 1.0 - posY) * deltaDistY; }
+
+                // Digital Differential Analysis (DDA) Intersect Search Loop
+                while (hit === 0) {
+                    if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+                    else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+                    if (worldMap[mapX][mapY] > 0) hit = worldMap[mapX][mapY];
+                }
+
+                if (side === 0) perpWallDist = (sideDistX - deltaDistX);
+                else perpWallDist = (sideDistY - deltaDistY);
+
+                zBuffer[x] = perpWallDist;
+
+                // Derive Height dimensions of sliced vertical pixel bar
+                let lineHeight = Math.floor(canvas.height / perpWallDist);
+                let drawStart = -lineHeight / 2 + canvas.height / 2;
+                if (drawStart < 0) drawStart = 0;
+                let drawEnd = lineHeight / 2 + canvas.height / 2;
+                if (drawEnd >= canvas.height) drawEnd = canvas.height - 1;
+
+                // Color profiling choices based on targeted sector block index mapping
+                let wallColor = '#991b1b'; // Red Base Brick
+                if (hit === 2) wallColor = '#1e40af'; // Blue Key Area
+                if (hit === 3) wallColor = '#f59e0b'; // Amber Gold Sector Exit Door
+
+                // Shadow shadow casting offset reduction factor side tracking
+                if (side === 1) {
+                    ctx.fillStyle = wallColor;
+                    // Mock shade dimming calculation
+                    ctx.globalAlpha = Math.min(1, 15 / (perpWallDist * 4));
+                    ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+                    ctx.globalAlpha = 1;
+                } else {
+                    // Bright face orientation
+                    ctx.fillStyle = wallColor;
+                    ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+                }
+            }
+
+            // Sprite Projection Sort pipeline pass
+            let spriteOrder = [];
+            for (let i = 0; i < sprites.length; i++) {
+                spriteOrder[i] = i;
+                sprites[i].distance = ((posX - sprites[i].x) * (posX - sprites[i].x) + (posY - sprites[i].y) * (posY - sprites[i].y));
+            }
+            spriteOrder.sort((a, b) => sprites[b].distance - sprites[a].distance);
+
+            // Draw visible ordered threat sprites
+            spriteOrder.forEach(idx => {
+                let sprite = sprites[idx];
+                if (!sprite.alive) return;
+
+                let spriteX = sprite.x - posX;
+                let spriteY = sprite.y - posY;
+
+                let invDet = 1.0 / (planeX * dirY - dirX * planeY);
+                let transformX = invDet * (dirY * spriteX - dirX * spriteY);
+                let transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+
+                let spriteScreenX = Math.floor((canvas.width / 2) * (1 + transformX / transformY));
+                let spriteHeight = Math.abs(Math.floor(canvas.height / transformY));
+
+                let drawStartY = -spriteHeight / 2 + canvas.height / 2;
+                if (drawStartY < 0) drawStartY = 0;
+                let drawEndY = spriteHeight / 2 + canvas.height / 2;
+                if (drawEndY >= canvas.height) drawEndY = canvas.height - 1;
+
+                let spriteWidth = Math.abs(Math.floor(canvas.height / transformY));
+                let drawStartX = -spriteWidth / 2 + spriteScreenX;
+                let drawEndX = spriteWidth / 2 + spriteScreenX;
+
+                // Loop and draw vertical bars if within screen limits and not hidden behind walls
+                for (let stripe = drawStartX; stripe < drawEndX; stripe++) {
+                    if (stripe >= 0 && stripe < canvas.width && transformY > 0 && transformY < zBuffer[stripe]) {
+                        ctx.fillStyle = '#b91c1c'; // Threat Imp Color Profile fill block
+                        // Central mass core highlight lines
+                        ctx.fillRect(stripe, drawStartY + (spriteHeight * 0.2), 1, (drawEndY - drawStartY) * 0.7);
+                        ctx.fillStyle = '#f97316'; // Imp glowing eyes detail
+                        ctx.fillRect(spriteScreenX - 2, drawStartY + (spriteHeight * 0.3), 4, 2);
+                    }
+                }
+            });
+        }
+
+        function renderWeaponHUD() {
+            // Dynamic weapon Bob and firing sprite display states
+            let centerX = canvas.width / 2;
+            let baseY = canvas.height;
+
+            ctx.fillStyle = '#52525b'; // Barrel Base metal tone
+            if (isShooting) {
+                weaponFrame++;
+                // Flash Muzzle Fire Core Flare
+                ctx.fillStyle = '#eab308';
+                ctx.beginPath();
+                ctx.arc(centerX, baseY - 110, 40, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ef4444'; // Secondary core highlight
+                ctx.fillRect(centerX - 10, baseY - 90, 20, 40);
+
+                if (weaponFrame > 6) { isShooting = false; weaponFrame = 0; }
+            }
+
+            // Draw primary shotgun center asset layout rectangle blocks
+            ctx.fillStyle = '#3f3f46';
+            ctx.fillRect(centerX - 25, baseY - 90, 50, 90);
+            ctx.fillStyle = '#18181b'; // Double core barrel holes
+            ctx.fillRect(centerX - 18, baseY - 95, 14, 25);
+            ctx.fillRect(centerX + 4, baseY - 95, 14, 25);
+
+            // Precision crosshair dot mapping to middle grid index points
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+            ctx.fillRect(centerX - 2, canvas.height / 2 - 2, 4, 4);
+        }
+
+        function renderAutomap() {
+            // Overlays mini tracking grid onto view canvas
+            let scale = 6;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(10, 10, mapWidth * scale, mapHeight * scale);
+
+            for (let x = 0; x < mapWidth; x++) {
+                for (let y = 0; y < mapHeight; y++) {
+                    if (worldMap[x][y] > 0) {
+                        ctx.fillStyle = worldMap[x][y] === 3 ? '#eab308' : '#4b5563';
+                        ctx.fillRect(10 + x * scale, 10 + y * scale, scale - 1, scale - 1);
+                    }
+                }
+            }
+            // Draw player dot node inside map canvas quadrant matrix bounds
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(10 + posX * scale - 1, 10 + posY * scale - 1, 3, 3);
+        }
+
+        function updateHUDData() {
+            document.getElementById('hudAmmo').innerText = ammo;
+            document.getElementById('hudHealth').innerText = health + "%";
+            document.getElementById('hudArmor').innerText = armor + "%";
+            document.getElementById('hudFrags').innerText = frags;
+        }
+    </script>
+</body>
+
+</html>

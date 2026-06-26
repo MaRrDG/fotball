@@ -234,9 +234,8 @@ as $$
         when 'F'   then 10
         else 3                                                       -- GROUP
       end
-    when sign(ph - pa) = sign(ah - aa) and ph - pa = ah - aa
-         and ph <> pa                                          then 2  -- exact goal difference (decisive results only)
-    when sign(ph - pa) = sign(ah - aa)                         then 1  -- correct trend (incl. any draw-for-a-draw)
+    when ph - pa = ah - aa                                     then 2  -- same goal difference, incl. a draw called as a draw (both a 0 margin)
+    when sign(ph - pa) = sign(ah - aa)                         then 1  -- correct trend only (right winner, wrong margin)
     else 0
   end;
 $$;

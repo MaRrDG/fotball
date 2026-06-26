@@ -16,8 +16,8 @@ begin;
 -- ------------------------------------------------------------
 -- 1. calc_match_points — the per-match formula (pure, no setup)
 --    exact score = stage-dependent (GROUP 3 · R32 4 · R16 5 · QF 6 · SF/3RD 8 · F 10)
---    2 = decisive result, exact goal difference · 1 = right outcome only (any
---        draw-for-a-draw lands here, never the +2 tier) · 0 = wrong
+--    2 = same goal difference but not exact (same decisive margin, OR a draw
+--        called as a draw) · 1 = right winner, wrong margin · 0 = wrong outcome
 -- ------------------------------------------------------------
 do $$
 begin
@@ -39,9 +39,11 @@ begin
   assert public.calc_match_points(0,2, 1,3) = 2, 'away win by 2 vs by 2 -> 2';
   assert public.calc_match_points(3,1, 2,0, 'F') = 2, 'GD tier unchanged in the final -> 2';
 
-  -- a draw is a 0-goal margin: calling it right is the trend tier, never GD
-  assert public.calc_match_points(1,1, 2,2) = 1, 'draw vs draw (0 margin) -> 1, not GD';
-  assert public.calc_match_points(0,0, 2,2) = 1, 'goalless draw vs draw -> 1, not GD';
+  -- a draw is a 0-goal margin: a draw called as a draw matches the GD tier (+2)
+  assert public.calc_match_points(1,1, 2,2) = 2, 'draw vs draw (same 0 margin) -> 2';
+  assert public.calc_match_points(0,0, 2,2) = 2, 'goalless draw vs other draw -> 2';
+
+  -- trend = right winner, wrong margin (a draw can never land here)
   assert public.calc_match_points(3,0, 1,0) = 1, 'home win by 3 vs by 1 -> 1';
   assert public.calc_match_points(0,3, 0,1) = 1, 'away win by 3 vs by 1 -> 1';
   assert public.calc_match_points(3,0, 1,0, 'F') = 1, 'trend tier unchanged in the final -> 1';
@@ -90,7 +92,7 @@ insert into public.predictions (user_id, match_id, home_goals, away_goals) value
 insert into public.predictions (user_id, match_id, home_goals, away_goals, penalty_winner) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 9000002, 1, 1, 'home'),  -- final exact 10 + pen 1 -> 11 (+ bullseye)
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 9000002, 1, 1, 'away'),  -- final exact 10 + pen 0 -> 10 (+ bullseye)
-  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 9000002, 0, 0, 'home');  -- draw-for-draw trend 1 + pen 1 -> 2
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 9000002, 0, 0, 'home');  -- draw-for-draw GD 2 + pen 1 -> 3
 
 select public.score_match(9000001);
 select public.score_match(9000002);
@@ -120,7 +122,7 @@ begin
 
   select points into p from public.predictions
    where user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' and match_id = 9000002;
-  assert p = 2, format('Cara/penalty expected 2 (draw-for-draw trend + pen bonus), got %s', p);
+  assert p = 3, format('Cara/penalty expected 3 (draw-for-draw GD + pen bonus), got %s', p);
 
   -- both matches should now be flagged scored
   select scored into s from public.matches where id = 9000001;

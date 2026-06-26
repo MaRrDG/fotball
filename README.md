@@ -27,8 +27,8 @@ penalty-shootout goals never count toward the score):
 | Tier | Points | When |
 |---|---|---|
 | **Bulls-eye** | 3–10 | Exact score. Worth more the deeper the round — see table below. |
-| **Goal difference** | 2 | Right winner *and* the exact winning margin (decisive results only — a draw has no margin). |
-| **Trend** | 1 | Right outcome only, including correctly calling a draw. |
+| **Goal difference** | 2 | Right goal difference but not the exact score — the same winning margin (e.g. 3–1 vs 2–0), or a draw called as a draw (e.g. 1–1 vs 2–2). |
+| **Trend** | 1 | Right winner, wrong margin (decisive results only — a draw lands in the tier above). |
 | **Air ball** | 0 | Wrong outcome. |
 
 The bulls-eye (exact-score) reward climbs through the knockout rounds; the

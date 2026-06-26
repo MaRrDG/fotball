@@ -16,15 +16,15 @@ const MATCH_POINTS = [
   {
     pts: 2,
     name: "Goal difference",
-    desc: "Right winner and the exact winning margin. Draws don't count here — a draw has no margin.",
-    example: "You said 3–1, it ended 2–0 — both are wins by two.",
+    desc: "Right goal difference but not the exact score — the same winning margin, or a draw you called as a draw.",
+    example: "You said 1–1, it ended 2–2 — both draws, +2. (3–1 vs 2–0 works too — both wins by two.)",
     tone: "text-volt",
   },
   {
     pts: 1,
     name: "Trend",
-    desc: "Right outcome only — including correctly calling a draw.",
-    example: "You said 1–1, it ended 2–2 — both draws, so +1.",
+    desc: "Right winner, wrong margin.",
+    example: "You said 3–0, it ended 1–0 — right winner, different gap.",
     tone: "text-chalk",
   },
   {
