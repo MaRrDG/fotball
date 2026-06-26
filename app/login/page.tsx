@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +14,35 @@ function LoginForm() {
     searchParams.get("error") === "invalid_link" ? "That link is invalid or expired." : null
   );
   const [loading, setLoading] = useState(false);
+
+  // Supabase recovery emails using the implicit flow land here as
+  // /login#access_token=...&refresh_token=...&type=recovery. The SSR browser
+  // client defaults to the PKCE flow, so it only auto-detects a ?code= query
+  // param and ignores these hash tokens — we have to parse them and establish
+  // the session ourselves, then send the user on to choose a new password.
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash || !hash.includes("access_token")) return;
+    const params = new URLSearchParams(hash.slice(1));
+    if (params.get("type") !== "recovery") return;
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (!access_token || !refresh_token) {
+      setError("That link is invalid or expired.");
+      return;
+    }
+    // Strip the tokens from the URL so they don't linger in history.
+    window.history.replaceState(null, "", window.location.pathname);
+    const supabase = createClient();
+    supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+      if (error) {
+        setError("That link is invalid or expired.");
+        return;
+      }
+      router.push("/set-password");
+      router.refresh();
+    });
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

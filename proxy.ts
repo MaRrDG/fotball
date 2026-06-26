@@ -2,7 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Refreshes the Supabase session cookie and walls off the app:
-// everything except /login, /register, /auth/* and the cron route requires a session.
+// everything except /login, /register, /set-password, /auth/* and the cron
+// route requires a session. /set-password guards itself client-side (it bounces
+// to /login without a session) — it must stay public so the recovery flow,
+// which establishes the session client-side via setSession(), isn't blocked by
+// the proxy before that cookie has propagated.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -33,6 +37,7 @@ export async function proxy(request: NextRequest) {
   const isPublic =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
+    pathname.startsWith("/set-password") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/cron");
 
