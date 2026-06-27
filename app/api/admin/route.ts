@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { seedSchedule, pollSync, setManualScore, clearManualScore } from "@/lib/sync";
+import {
+  seedSchedule,
+  pollSync,
+  setManualScore,
+  clearManualScore,
+  setGroupWinners,
+  clearGroupWinner,
+} from "@/lib/sync";
 
 // Admin actions, dispatched on { action, ...payload }. Caller must be a
 // signed-in user whose profile has is_admin = true.
@@ -82,6 +89,31 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "matchId required" }, { status: 400 });
         }
         const result = await clearManualScore(matchId);
+        return NextResponse.json({ ok: true, ...result });
+      }
+
+      case "set-group-winners": {
+        const { winners } = body;
+        if (!Array.isArray(winners) || winners.length === 0) {
+          return NextResponse.json({ error: "winners array required" }, { status: 400 });
+        }
+        if (winners.some((w) => typeof w?.group !== "string" || typeof w?.team !== "string")) {
+          return NextResponse.json(
+            { error: "each winner needs a group and a team" },
+            { status: 400 }
+          );
+        }
+        // setGroupWinners validates group/team against the teams table.
+        const result = await setGroupWinners(winners);
+        return NextResponse.json({ ok: true, ...result });
+      }
+
+      case "clear-group-winner": {
+        const { group } = body;
+        if (typeof group !== "string" || !group) {
+          return NextResponse.json({ error: "group required" }, { status: 400 });
+        }
+        const result = await clearGroupWinner(group);
         return NextResponse.json({ ok: true, ...result });
       }
 

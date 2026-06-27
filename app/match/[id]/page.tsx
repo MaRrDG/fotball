@@ -14,7 +14,6 @@ type PredictionWithProfile = {
   user_id: string;
   home_goals: number;
   away_goals: number;
-  penalty_winner: "home" | "away" | null;
   points: number | null;
   is_bullseye: boolean;
   profiles: { nickname: string } | null;
@@ -33,7 +32,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
     supabase.from("matches").select("*").eq("id", Number(id)).single<Match>(),
     supabase
       .from("predictions")
-      .select("user_id, home_goals, away_goals, penalty_winner, points, is_bullseye, profiles(nickname)")
+      .select("user_id, home_goals, away_goals, points, is_bullseye, profiles(nickname)")
       .eq("match_id", Number(id))
       .returns<PredictionWithProfile[]>(),
   ]);
@@ -149,11 +148,6 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </span>
               <span className="display text-center text-xl">
                 {p.home_goals}<span className="text-muted">–</span>{p.away_goals}
-                {p.penalty_winner && (
-                  <span className="tag ml-2">
-                    pens: {p.penalty_winner === "home" ? match.home_team : match.away_team}
-                  </span>
-                )}
               </span>
               <span className="text-right">
                 {p.points !== null ? (

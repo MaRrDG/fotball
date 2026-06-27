@@ -71,7 +71,6 @@ create table public.predictions (
   match_id        bigint not null references public.matches (id) on delete cascade,
   home_goals      int not null check (home_goals between 0 and 99),
   away_goals      int not null check (away_goals between 0 and 99),
-  penalty_winner  text check (penalty_winner in ('home','away')),
   points          int,                 -- null until the match is scored
   is_bullseye     boolean not null default false,
   created_at      timestamptz not null default now(),
@@ -93,7 +92,7 @@ create trigger matches_touch before update on public.matches
   for each row execute function public.touch_updated_at();
 
 -- ------------------------------------------------------------
--- TOURNAMENT PICKS (group winners + knockout bracket)
+-- TOURNAMENT PICKS (group winners — the knockout bracket is display-only)
 -- ------------------------------------------------------------
 create table public.group_winner_picks (
   user_id     uuid not null references public.profiles (id) on delete cascade,
@@ -102,42 +101,6 @@ create table public.group_winner_picks (
   updated_at  timestamptz not null default now(),
   primary key (user_id, group_name)
 );
-
-create table public.bracket_picks (
-  user_id     uuid not null references public.profiles (id) on delete cascade,
-  round       text not null check (round in ('R16','QF','SF','F','CHAMP')),
-  team        text not null references public.teams (name) on delete cascade,
-  updated_at  timestamptz not null default now(),
-  primary key (user_id, round, team)
-);
-
--- Per-round slot cap: the React UI limits how many teams a player advances each
--- round (R16:16 QF:8 SF:4 F:2 CHAMP:1), but the cap MUST be enforced in the DB —
--- otherwise a player can insert every team into every round via the REST API and
--- guarantee maximum bracket points. Reject inserts past the cap for that round.
-create or replace function public.bracket_slot_limit()
-returns trigger
-language plpgsql security definer set search_path = public
-as $$
-declare
-  cap int := case new.round
-               when 'R16'   then 16
-               when 'QF'    then 8
-               when 'SF'    then 4
-               when 'F'     then 2
-               else 1                       -- CHAMP
-             end;
-begin
-  if (select count(*) from public.bracket_picks
-      where user_id = new.user_id and round = new.round) >= cap then
-    raise exception 'pick limit reached for %', new.round;
-  end if;
-  return new;
-end;
-$$;
-
-create trigger bracket_cap before insert on public.bracket_picks
-  for each row execute function public.bracket_slot_limit();
 
 create trigger gw_touch before update on public.group_winner_picks
   for each row execute function public.touch_updated_at();
@@ -153,11 +116,15 @@ create table public.tournament_results (
   primary key (kind, team)
 );
 
+-- At most one winner per group. The +3 group-winner scoring joins on
+-- (group_name, team), so a duplicate winner row would let a pick double-score;
+-- this also lets the admin override (setGroupWinners) safely replace a winner.
+create unique index tournament_results_group_winner_uniq
+  on public.tournament_results (group_name) where kind = 'GROUP_WINNER';
+
 -- ------------------------------------------------------------
 -- SETTINGS (key/value: lock times, sync bookkeeping)
 --   (group winner picks lock automatically per group — see group_pick_open)
---   bracket_picks_open  timestamptz — after last group match
---   bracket_picks_lock  timestamptz — first R32 kickoff minus 2h
 --   last_fetch_date     YYYY-MM-DD  — sync bookkeeping
 --   group_winners_filled 'true'     — sync bookkeeping
 -- ------------------------------------------------------------
@@ -204,15 +171,6 @@ as $$
     'infinity'::timestamptz);
 $$;
 
--- Bracket picks: editable only inside the [open, lock) window set by the admin.
-create or replace function public.bracket_picks_open()
-returns boolean
-language sql stable security definer set search_path = public
-as $$
-  select now() >= coalesce(public.setting_ts('bracket_picks_open'), 'infinity'::timestamptz)
-     and now() <  coalesce(public.setting_ts('bracket_picks_lock'), 'infinity'::timestamptz);
-$$;
-
 -- ------------------------------------------------------------
 -- SCORING ENGINE (Section 4)
 -- ------------------------------------------------------------
@@ -255,11 +213,7 @@ begin
   end if;
 
   update public.predictions p
-  set points = public.calc_match_points(p.home_goals, p.away_goals, m.home_goals, m.away_goals, m.stage)
-             + case when m.status = 'PEN'
-                     and p.penalty_winner is not null
-                     and p.penalty_winner = m.penalty_winner
-                    then 1 else 0 end,   -- penalty shootout bonus
+  set points = public.calc_match_points(p.home_goals, p.away_goals, m.home_goals, m.away_goals, m.stage),
       is_bullseye = (p.home_goals = m.home_goals and p.away_goals = m.away_goals)
   where p.match_id = p_match_id;
 
@@ -311,7 +265,6 @@ alter table public.teams               enable row level security;
 alter table public.matches             enable row level security;
 alter table public.predictions         enable row level security;
 alter table public.group_winner_picks  enable row level security;
-alter table public.bracket_picks       enable row level security;
 alter table public.tournament_results  enable row level security;
 alter table public.settings            enable row level security;
 
@@ -354,13 +307,13 @@ create policy "predictions delete" on public.predictions
   for delete to authenticated
   using (user_id = auth.uid() and public.match_is_open(match_id));
 
--- Never let users write points/bullseye — only home/away goals + penalty pick.
+-- Never let users write points/bullseye — only home/away goals.
 -- user_id/match_id stay in the update grant because upsert re-writes them on
 -- conflict; RLS still forces them to the caller's own row on an open match.
 revoke insert, update on public.predictions from authenticated;
-grant insert (user_id, match_id, home_goals, away_goals, penalty_winner)
+grant insert (user_id, match_id, home_goals, away_goals)
   on public.predictions to authenticated;
-grant update (user_id, match_id, home_goals, away_goals, penalty_winner)
+grant update (user_id, match_id, home_goals, away_goals)
   on public.predictions to authenticated;
 
 -- Group winner picks: same blind + lock rules, but per group — each group's
@@ -378,15 +331,3 @@ create policy "gw update" on public.group_winner_picks
 create policy "gw delete" on public.group_winner_picks
   for delete to authenticated
   using (user_id = auth.uid() and public.group_pick_open(group_name));
-
--- Bracket picks: editable only in the open window.
-create policy "bracket select" on public.bracket_picks
-  for select to authenticated
-  using (user_id = auth.uid()
-         or now() >= coalesce(public.setting_ts('bracket_picks_lock'), 'infinity'::timestamptz));
-create policy "bracket insert" on public.bracket_picks
-  for insert to authenticated
-  with check (user_id = auth.uid() and public.bracket_picks_open());
-create policy "bracket delete" on public.bracket_picks
-  for delete to authenticated
-  using (user_id = auth.uid() and public.bracket_picks_open());

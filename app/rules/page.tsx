@@ -106,18 +106,6 @@ export default async function RulesPage() {
           Goal difference (+2) and trend (+1) stay the same at every stage — only the
           exact-score bonus climbs.
         </p>
-
-        <div className="panel mt-3 flex items-center gap-4 border-volt/30 p-4">
-          <span className="display text-3xl text-volt">+1</span>
-          <p className="text-sm">
-            <span className="font-bold">Penalty bonus.</span>{" "}
-            <span className="text-muted">
-              Knockout matches have a &ldquo;who advances on penalties&rdquo; pick. If it goes
-              to a shootout and you named the right survivor, +1 — on top of whatever the
-              score earned you.
-            </span>
-          </p>
-        </div>
       </section>
 
       {/* ---- tournament points ---- */}

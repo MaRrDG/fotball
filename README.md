@@ -43,10 +43,6 @@ goal-difference (+2) and trend (+1) tiers stay flat at every stage:
 | Semi-final / 3rd place | +8 |
 | Final | +10 |
 
-**Penalty bonus (+1)** — knockout matches carry a "who advances on penalties" pick.
-If the match goes to a shootout and you named the right survivor, +1 on top of
-whatever the score earned.
-
 **Group winners (+3 each)** — call the winner of each of the 12 groups before the
 tournament starts. Max 36 points. This is the only tournament-level pick: the
 knockout bracket builds itself automatically as rounds are played and carries no points.
@@ -90,8 +86,6 @@ all fixtures; team/group mappings are derived from them). Then set the three loc
 | Setting | Per the rules |
 |---|---|
 | Group winner picks lock | Opening match kick-off − 2 h |
-| Bracket picks open | After the last group-stage match |
-| Bracket picks lock | First Round-of-32 kick-off − 2 h |
 
 ## 5. Create player accounts
 
@@ -148,7 +142,7 @@ deploy. Point your colleagues at the URL, collect the buy-ins, print the trophy.
   once the match is locked.
 - **Audit trail**: `predictions.updated_at` is maintained by a DB trigger — disputes
   are settled with one SQL query.
-- **No score tampering**: users can only write `home_goals`/`away_goals`/`penalty_winner`
+- **No score tampering**: users can only write `home_goals`/`away_goals`
   (column-level grants); `points` is written exclusively by the `score_match()` function,
   which runs only after football-data.org reports a final status.
 

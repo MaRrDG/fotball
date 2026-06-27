@@ -20,6 +20,8 @@ interface Props {
   matchCount: number;
   userCount: number;
   recentMatches: OverrideMatch[];
+  teams: { name: string; group_name: string }[];
+  groupWinners: { group_name: string; team: string }[];
 }
 
 async function callAdmin(payload: Record<string, unknown>) {
@@ -33,7 +35,7 @@ async function callAdmin(payload: Record<string, unknown>) {
   return json;
 }
 
-export function AdminPanel({ matchCount, userCount, recentMatches }: Props) {
+export function AdminPanel({ matchCount, userCount, recentMatches, teams, groupWinners }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<string | null>(null);
@@ -41,6 +43,14 @@ export function AdminPanel({ matchCount, userCount, recentMatches }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
+
+  // Group winners: teams grouped by letter, plus the currently-recorded winner.
+  const groupLetters = [...new Set(teams.map((t) => t.group_name))].sort();
+  const teamsByGroup: Record<string, string[]> = {};
+  for (const t of teams) (teamsByGroup[t.group_name] ??= []).push(t.name);
+  const recordedWinners: Record<string, string> = {};
+  for (const w of groupWinners) recordedWinners[w.group_name] = w.team;
+  const [winners, setWinners] = useState<Record<string, string>>(recordedWinners);
 
   const [overrideId, setOverrideId] = useState("");
   const [homeGoals, setHomeGoals] = useState("");
@@ -217,6 +227,57 @@ export function AdminPanel({ matchCount, userCount, recentMatches }: Props) {
             </>
           )}
         </div>
+      </section>
+
+      {/* Group winners */}
+      <section className="panel p-4">
+        <h2 className="mb-2 font-semibold">Group winners</h2>
+        <p className="mb-3 text-sm text-muted">
+          The sync fills these automatically from the official standings once the Round of 32 is
+          drawn. Override them here if the feed is wrong or late — each correct pick is worth +3 on
+          the leaderboard. Groups you leave alone are still filled by the sync.
+        </p>
+        {groupLetters.length === 0 ? (
+          <p className="text-sm text-muted">No teams yet — seed the schedule first.</p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {groupLetters.map((g) => (
+                <label key={g} className="flex flex-col gap-1">
+                  <span className="tag">Group {g}</span>
+                  <select
+                    value={winners[g] ?? ""}
+                    onChange={(e) => setWinners((w) => ({ ...w, [g]: e.target.value }))}
+                    className="rounded border border-line bg-panel px-2 py-1.5 text-sm text-chalk focus:border-volt focus:outline-none"
+                  >
+                    <option value="">— winner —</option>
+                    {teamsByGroup[g].map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3">
+              <button
+                onClick={() =>
+                  run("Set group winners", {
+                    action: "set-group-winners",
+                    winners: Object.entries(winners)
+                      .filter(([, team]) => team)
+                      .map(([group, team]) => ({ group, team })),
+                  })
+                }
+                disabled={busy !== null || Object.values(winners).every((t) => !t)}
+                className="display rounded bg-volt px-4 py-1.5 text-sm text-pitch hover:bg-volt-dim disabled:opacity-30"
+              >
+                {busy === "Set group winners" ? "Saving..." : "Save group winners"}
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Users */}

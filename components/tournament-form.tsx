@@ -12,6 +12,8 @@ interface Props {
   /** group letter -> ISO kickoff of that group's first match (its lock time). */
   groupLocks: Record<string, string>;
   initialGroupPicks: Record<string, string>;
+  /** group letter -> official winning team, once known (sync / admin). */
+  actualWinners: Record<string, string>;
 }
 
 function fmt(ts: string | null) {
@@ -30,6 +32,7 @@ export function TournamentForm({
   teams,
   groupLocks,
   initialGroupPicks,
+  actualWinners,
 }: Props) {
   const [now] = useState(() => Date.now());
   // A group is editable until its own first match kicks off; no scheduled
@@ -64,6 +67,18 @@ export function TournamentForm({
   const [loadingAllPicks, setLoadingAllPicks] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
+  // Group-winner standings: +3 per correct call, highest first. Mirrors the
+  // leaderboard's Tourney column, but per-pick so you can see who nailed what.
+  const gwScorers = useMemo(() => {
+    const pts = new Map<string, number>();
+    for (const p of allPicks) {
+      pts.set(p.nickname, (pts.get(p.nickname) ?? 0) + (actualWinners[p.group_name] === p.team ? 3 : 0));
+    }
+    return [...pts.entries()]
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [allPicks, actualWinners]);
+
   useEffect(() => {
     const fetchAllPicks = async () => {
       const lockedGroups = Object.entries(groupLocks)
@@ -80,7 +95,12 @@ export function TournamentForm({
         .in("group_name", lockedGroups);
 
       if (!error && data) {
-        const picks = data.map((row: any) => ({
+        const rows = data as unknown as Array<{
+          group_name: string;
+          team: string;
+          profiles: { nickname: string };
+        }>;
+        const picks = rows.map((row) => ({
           group_name: row.group_name,
           team: row.team,
           nickname: row.profiles.nickname,
@@ -210,12 +230,34 @@ export function TournamentForm({
             </h2>
             <span className="tag">Once locked, picks are public</span>
           </div>
+
+          {/* Group-winner scorers — who's earning the most from these picks. */}
+          {gwScorers.length > 0 && (
+            <div className="panel mb-6 p-4">
+              <p className="tag mb-2">Most points from group picks</p>
+              <div className="flex flex-wrap gap-2">
+                {gwScorers.map(([nickname, pts], i) => (
+                  <span
+                    key={nickname}
+                    className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-sm ${
+                      i === 0 ? "bg-gold/15 text-gold" : "bg-panel-2 text-chalk"
+                    }`}
+                  >
+                    {nickname}
+                    <span className="display">+{pts}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             {groups
               .filter(([group]) => allPicks.some((p) => p.group_name === group))
               .map(([group, _]) => {
                 const groupPicksData = allPicks.filter((p) => p.group_name === group);
                 const isExpanded = expandedGroups.has(group);
+                const winner = actualWinners[group] ?? null;
 
                 return (
                   <div key={group} className="border border-line rounded">
@@ -233,6 +275,11 @@ export function TournamentForm({
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-muted">Group {group}</span>
+                        {winner ? (
+                          <span className="text-xs text-volt">won by {winner}</span>
+                        ) : (
+                          <span className="text-xs text-muted/60">winner TBD</span>
+                        )}
                         <span className="text-xs text-muted/60">
                           {groupPicksData.length} {groupPicksData.length === 1 ? "pick" : "picks"}
                         </span>
@@ -249,15 +296,32 @@ export function TournamentForm({
                       <div className="border-t border-line divide-y divide-line bg-pitch/50">
                         {groupPicksData
                           .sort((a, b) => a.nickname.localeCompare(b.nickname))
-                          .map((pick) => (
-                            <div
-                              key={`${pick.group_name}-${pick.nickname}`}
-                              className="flex items-center justify-between px-4 py-3 text-sm"
-                            >
-                              <span className="text-chalk">{pick.nickname}</span>
-                              <span className="font-semibold text-volt">{pick.team}</span>
-                            </div>
-                          ))}
+                          .map((pick) => {
+                            const correct = winner !== null && pick.team === winner;
+                            return (
+                              <div
+                                key={`${pick.group_name}-${pick.nickname}`}
+                                className="flex items-center justify-between px-4 py-3 text-sm"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className={correct ? "text-chalk" : "text-muted"}>
+                                    {pick.nickname}
+                                  </span>
+                                  {winner !== null &&
+                                    (correct ? (
+                                      <span className="tag !text-gold">+3</span>
+                                    ) : (
+                                      <span className="tag !text-muted/60">+0</span>
+                                    ))}
+                                </span>
+                                <span
+                                  className={`font-semibold ${correct ? "text-volt" : "text-muted"}`}
+                                >
+                                  {pick.team}
+                                </span>
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
                   </div>

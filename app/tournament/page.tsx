@@ -11,11 +11,13 @@ export default async function TournamentPage() {
   if (!userId) redirect("/login");
 
   const supabase = await createClient();
-  const [{ data: teams }, { data: gwPicks }, { data: groupMatches }] =
+  const [{ data: teams }, { data: gwPicks }, { data: groupMatches }, { data: winnerRows }] =
     await Promise.all([
       supabase.from("teams").select("*").order("group_name").order("name"),
       supabase.from("group_winner_picks").select("group_name, team").eq("user_id", userId),
       supabase.from("matches").select("kickoff, home_team").eq("stage", "GROUP"),
+      // Official group winners (filled by sync / admin). Readable by everyone.
+      supabase.from("tournament_results").select("group_name, team").eq("kind", "GROUP_WINNER"),
     ]);
 
   // Each group locks when its first group-stage match kicks off. Mirror the
@@ -35,6 +37,7 @@ export default async function TournamentPage() {
       teams={(teams ?? []) as Team[]}
       groupLocks={groupLocks}
       initialGroupPicks={Object.fromEntries((gwPicks ?? []).map((p) => [p.group_name, p.team]))}
+      actualWinners={Object.fromEntries((winnerRows ?? []).map((r) => [r.group_name, r.team]))}
     />
   );
 }
