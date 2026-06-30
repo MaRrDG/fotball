@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { isFinished, type Match } from "@/lib/types";
 import { TrophyIcon } from "@/components/icons";
+import { TeamCrest } from "@/components/team-crest";
 
 // NCAA-style bracket: two wings of R32 → R16 → QF → SF converging on a
-// center Final. Rounds are sorted chronologically and split half/half per
-// wing; flex `justify-around` keeps every match vertically centred between
-// the pair that feeds it. Fluid on desktop (fits the container), horizontal
-// scroll on smaller screens.
+// center Final. R32 is the leaf order; every later round is positioned by
+// LINKING each match to the two matches below it that feed it (the round's
+// teams are the winners of the pair beneath), so a match always sits between
+// its feeders and the connecting lines never cross. flex `justify-around`
+// keeps each match vertically centred between that pair. Fluid on desktop
+// (fits the container), horizontal scroll on smaller screens.
 
 const WING_ROUNDS = ["R32", "R16", "QF", "SF"] as const;
-const SLOTS: Record<(typeof WING_ROUNDS)[number], number> = { R32: 16, R16: 8, QF: 4, SF: 2 };
-const ROUND_LABEL: Record<(typeof WING_ROUNDS)[number], string> = {
+type WingRound = (typeof WING_ROUNDS)[number];
+const SLOTS: Record<WingRound, number> = { R32: 16, R16: 8, QF: 4, SF: 2 };
+const ROUND_LABEL: Record<WingRound, string> = {
   R32: "R32",
   R16: "R16",
   QF: "QF",
@@ -18,7 +22,7 @@ const ROUND_LABEL: Record<(typeof WING_ROUNDS)[number], string> = {
 };
 const COLUMN_H = "h-[640px]";
 // fixed width on mobile (scrolls), fluid share of the row on lg+
-const COL_W = "w-36 lg:w-auto lg:flex-1 lg:min-w-0";
+const COL_W = "w-40 lg:w-auto lg:flex-1 lg:min-w-0";
 
 interface BracketProps {
   matches: Match[];
@@ -31,13 +35,78 @@ function winnerSide(m: Match): "home" | "away" | null {
   return m.home_goals > m.away_goals ? "home" : "away";
 }
 
+/**
+ * Build the per-round slot order for the whole bracket. R32 is sorted into a
+ * stable leaf order; each subsequent round is then laid out by linkage: slot i
+ * of round R is the match fed by slots 2i and 2i+1 of the round below, found by
+ * matching its teams against the four teams in that feeder pair. Empty/TBD
+ * rounds (no teams yet) fall back to insertion order so placeholders still fill
+ * top-to-bottom. Returns a full-width array per round (left wing first half,
+ * right wing second half).
+ */
+function orderedRounds(byStage: Map<string, Match[]>): Record<WingRound, (Match | null)[]> {
+  const ordered = {} as Record<WingRound, (Match | null)[]>;
+
+  const leaves: (Match | null)[] = [...(byStage.get("R32") ?? [])];
+  while (leaves.length < SLOTS.R32) leaves.push(null);
+  ordered.R32 = leaves.slice(0, SLOTS.R32);
+
+  let prevRound: WingRound = "R32";
+  for (const round of ["R16", "QF", "SF"] as const) {
+    const prev = ordered[prevRound];
+    const pool = [...(byStage.get(round) ?? [])];
+    const used = new Set<number>();
+    const slots: (Match | null)[] = [];
+
+    for (let i = 0; i < SLOTS[round]; i++) {
+      const feederTeams = new Set<string>();
+      for (const m of [prev[2 * i], prev[2 * i + 1]]) {
+        if (m?.home_team) feederTeams.add(m.home_team);
+        if (m?.away_team) feederTeams.add(m.away_team);
+      }
+      const inFeeders = (m: Match) =>
+        (m.home_team != null && feederTeams.has(m.home_team)) ||
+        (m.away_team != null && feederTeams.has(m.away_team));
+      // Prefer a match whose BOTH teams trace back to this feeder pair, then
+      // relax to a single matching team (the other feeder may still be TBD).
+      const found =
+        pool.find(
+          (m) =>
+            !used.has(m.id) &&
+            m.home_team != null &&
+            m.away_team != null &&
+            feederTeams.has(m.home_team) &&
+            feederTeams.has(m.away_team)
+        ) ??
+        pool.find((m) => !used.has(m.id) && inFeeders(m)) ??
+        null;
+      if (found) used.add(found.id);
+      slots.push(found);
+    }
+
+    // Any matches we couldn't link (data gap, or feeders still TBD) drop into
+    // the remaining empty slots in order so nothing is lost.
+    const leftovers = pool.filter((m) => !used.has(m.id));
+    for (let i = 0; i < slots.length && leftovers.length > 0; i++) {
+      if (slots[i] === null) slots[i] = leftovers.shift()!;
+    }
+
+    ordered[round] = slots;
+    prevRound = round;
+  }
+
+  return ordered;
+}
+
 function TeamLine({
   name,
+  crest,
   goals,
   won,
   lost,
 }: {
   name: string | null;
+  crest: string | null;
   goals: number | null;
   won: boolean;
   lost: boolean;
@@ -48,8 +117,11 @@ function TeamLine({
         lost ? "text-muted" : "text-chalk"
       }`}
     >
-      <span className={`truncate text-[11px] ${won ? "font-bold text-volt" : ""}`}>
-        {name ?? "—"}
+      <span className="flex min-w-0 items-center gap-1.5">
+        <TeamCrest src={crest} className={`h-4 w-4 ${lost ? "opacity-50" : ""}`} />
+        <span className={`truncate text-[11px] ${won ? "font-bold text-volt" : ""}`}>
+          {name ?? "—"}
+        </span>
       </span>
       <span className={`display text-[11px] ${won ? "text-volt" : ""}`}>{goals ?? ""}</span>
     </div>
@@ -93,6 +165,7 @@ function MatchCard({
       )}
       <TeamLine
         name={match.home_team}
+        crest={match.home_crest}
         goals={match.home_goals}
         won={w === "home"}
         lost={w === "away"}
@@ -100,6 +173,7 @@ function MatchCard({
       <div className="border-t border-line" />
       <TeamLine
         name={match.away_team}
+        crest={match.away_crest}
         goals={match.away_goals}
         won={w === "away"}
         lost={w === "home"}
@@ -143,17 +217,20 @@ export function Bracket({ matches, champion }: BracketProps) {
     if (!byStage.has(m.stage)) byStage.set(m.stage, []);
     byStage.get(m.stage)!.push(m);
   }
+  // Order by match id — football-data numbers knockout fixtures in bracket
+  // order, so consecutive R32 ids are the pairs that feed each R16 (verified
+  // against the live draw). Kickoff order would scramble which matches are
+  // bracket-adjacent. Linkage below positions every later round from this.
   for (const list of byStage.values()) {
-    list.sort((a, b) => a.kickoff.localeCompare(b.kickoff) || a.id - b.id);
+    list.sort((a, b) => a.id - b.id);
   }
 
+  const ordered = orderedRounds(byStage);
   const left: Record<string, (Match | null)[]> = {};
   const right: Record<string, (Match | null)[]> = {};
   for (const round of WING_ROUNDS) {
-    const list: (Match | null)[] = [...(byStage.get(round) ?? [])];
-    while (list.length < SLOTS[round]) list.push(null);
-    left[round] = list.slice(0, SLOTS[round] / 2);
-    right[round] = list.slice(SLOTS[round] / 2, SLOTS[round]);
+    left[round] = ordered[round].slice(0, SLOTS[round] / 2);
+    right[round] = ordered[round].slice(SLOTS[round] / 2, SLOTS[round]);
   }
 
   const final = byStage.get("F")?.[0] ?? null;
