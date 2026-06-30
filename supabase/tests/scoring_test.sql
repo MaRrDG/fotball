@@ -58,7 +58,8 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
--- 2. score_match — end to end, including the +1 penalty bonus and is_bullseye.
+-- 2. score_match — end to end: stage-scaled exact score and is_bullseye. A
+--    penalty final scores off its 1-1 result like any other match (no bonus).
 --    Detach the auth.users FK so we can use synthetic profile ids; the whole
 --    transaction is rolled back, so the constraint is restored.
 -- ------------------------------------------------------------
@@ -88,11 +89,12 @@ insert into public.predictions (user_id, match_id, home_goals, away_goals) value
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 9000001, 3, 0),  -- trend only -> 1
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', 9000001, 0, 2);  -- wrong side -> 0
 
--- Predictions on the penalty final (actual 1-1, home advance on pens).
-insert into public.predictions (user_id, match_id, home_goals, away_goals, penalty_winner) values
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 9000002, 1, 1, 'home'),  -- final exact 10 + pen 1 -> 11 (+ bullseye)
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 9000002, 1, 1, 'away'),  -- final exact 10 + pen 0 -> 10 (+ bullseye)
-  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 9000002, 0, 0, 'home');  -- draw-for-draw GD 2 + pen 1 -> 3
+-- Predictions on the penalty final (actual 1-1; the shootout result no longer
+-- affects scoring — only the 1-1 does).
+insert into public.predictions (user_id, match_id, home_goals, away_goals) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 9000002, 1, 1),  -- final exact -> 10 (+ bullseye)
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 9000002, 1, 1),  -- final exact -> 10 (+ bullseye)
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 9000002, 0, 0);  -- draw-for-draw GD -> 2
 
 select public.score_match(9000001);
 select public.score_match(9000002);
@@ -114,15 +116,15 @@ begin
 
   select points, is_bullseye into p, b from public.predictions
    where user_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and match_id = 9000002;
-  assert p = 11 and b, format('Alice/penalty expected 11+bullseye (final exact 10 + pen 1), got %s/%s', p, b);
+  assert p = 10 and b, format('Alice/penalty expected 10+bullseye (final exact), got %s/%s', p, b);
 
   select points, is_bullseye into p, b from public.predictions
    where user_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' and match_id = 9000002;
-  assert p = 10 and b, format('Bob/penalty expected 10+bullseye (final exact, wrong pen pick), got %s/%s', p, b);
+  assert p = 10 and b, format('Bob/penalty expected 10+bullseye (final exact), got %s/%s', p, b);
 
   select points into p from public.predictions
    where user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' and match_id = 9000002;
-  assert p = 3, format('Cara/penalty expected 3 (draw-for-draw GD + pen bonus), got %s', p);
+  assert p = 2, format('Cara/penalty expected 2 (draw-for-draw GD), got %s', p);
 
   -- both matches should now be flagged scored
   select scored into s from public.matches where id = 9000001;
@@ -139,8 +141,8 @@ declare r public.leaderboard%rowtype;
 begin
   select * into r from public.leaderboard
    where user_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-  -- match_points = 3 (group regular) + 11 (penalty final) = 14
-  assert r.match_points = 14, format('Alice match_points expected 14, got %s', r.match_points);
+  -- match_points = 3 (group regular) + 10 (penalty final) = 13
+  assert r.match_points = 13, format('Alice match_points expected 13, got %s', r.match_points);
   -- two bulls-eyes (both predictions exact)
   assert r.bullseyes = 2, format('Alice bullseyes expected 2, got %s', r.bullseyes);
   -- only the GROUP match counts toward group_stage_points

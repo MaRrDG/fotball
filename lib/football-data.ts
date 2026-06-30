@@ -152,9 +152,9 @@ export function fdStatus(match: FdMatch): string {
   }
 }
 
-/** "GROUP_A" → "A" */
+/** "GROUP_A" or "Group A" → "A" */
 export function fdGroup(group: string | null): string | null {
-  return group ? group.replace(/^GROUP_/, "") : null;
+  return group ? group.replace(/^group[_ ]/i, "").trim() : null;
 }
 
 /**

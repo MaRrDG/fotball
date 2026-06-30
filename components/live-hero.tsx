@@ -73,12 +73,7 @@ export function LiveHero({ matches, predictions }: Props) {
               {/* footer strip */}
               <div className="flex items-center justify-between border-t border-line/50 bg-pitch/30 px-3 py-2 text-xs">
                 <span className="text-muted">
-                  {p
-                    ? `Your pick: ${p.home_goals}–${p.away_goals}` +
-                      (p.penalty_winner
-                        ? ` · pens: ${p.penalty_winner === "home" ? m.home_team : m.away_team}`
-                        : "")
-                    : "No prediction"}
+                  {p ? `Your pick: ${p.home_goals}–${p.away_goals}` : "No prediction"}
                 </span>
                 <Link
                   href={`/match/${m.id}`}

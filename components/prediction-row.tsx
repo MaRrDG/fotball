@@ -24,13 +24,11 @@ export function PredictionRow({ match, prediction, userId }: Props) {
 
   const [home, setHome] = useState<string>(prediction ? String(prediction.home_goals) : "");
   const [away, setAway] = useState<string>(prediction ? String(prediction.away_goals) : "");
-  const [pen, setPen] = useState<"home" | "away" | null>(prediction?.penalty_winner ?? null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const kickoff = new Date(match.kickoff);
-  const isKnockout = match.stage !== "GROUP";
 
   async function save() {
     if (home === "" || away === "") return;
@@ -44,7 +42,6 @@ export function PredictionRow({ match, prediction, userId }: Props) {
         match_id: match.id,
         home_goals: Number(home),
         away_goals: Number(away),
-        penalty_winner: isKnockout ? pen : null,
       },
       { onConflict: "user_id,match_id" }
     );
@@ -140,26 +137,6 @@ export function PredictionRow({ match, prediction, userId }: Props) {
         </span>
       </div>
 
-      {open && isKnockout && (
-        <div className="flex items-center justify-center gap-4 border-t border-line/50 px-3 py-2 text-xs text-muted">
-          <span className="tag">If pens, who advances?</span>
-          {(["home", "away"] as const).map((side) => (
-            <label key={side} className="flex cursor-pointer items-center gap-1.5">
-              <input
-                type="radio"
-                name={`pen-${match.id}`}
-                checked={pen === side}
-                onChange={() => { setPen(side); setSaved(false); }}
-                className="accent-[var(--volt)]"
-              />
-              <span className={pen === side ? "font-bold text-volt" : ""}>
-                {side === "home" ? match.home_team ?? "Home" : match.away_team ?? "Away"}
-              </span>
-            </label>
-          ))}
-        </div>
-      )}
-
       {/* footer strip */}
       <div className="flex items-center justify-between border-t border-line/50 bg-pitch/30 px-3 py-2 text-xs">
         {open ? (
@@ -186,10 +163,7 @@ export function PredictionRow({ match, prediction, userId }: Props) {
           <>
             <span className="text-muted">
               {prediction
-                ? `Your pick: ${prediction.home_goals}–${prediction.away_goals}` +
-                  (prediction.penalty_winner
-                    ? ` · pens: ${prediction.penalty_winner === "home" ? match.home_team : match.away_team}`
-                    : "")
+                ? `Your pick: ${prediction.home_goals}–${prediction.away_goals}`
                 : "No prediction"}
               {prediction !== null && prediction.points !== null && (
                 <span className={`display ml-2 text-sm ${prediction.is_bullseye ? "text-gold" : "text-volt"}`}>

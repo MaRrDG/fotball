@@ -181,17 +181,25 @@ async function maybeFillGroupWinners(db: Admin): Promise<boolean> {
     .not("home_team", "is", null);
   if (!count) return false;
 
+  // Respect any manually-set winners (see setGroupWinners): only fill the groups
+  // that don't already have a recorded winner, so an admin override is never
+  // clobbered and a group never ends up with two winners.
+  const { data: existing, error: existingErr } = await db
+    .from("tournament_results")
+    .select("group_name")
+    .eq("kind", "GROUP_WINNER");
+  if (existingErr) throw new Error(`load group winners: ${existingErr.message}`);
+  const alreadyFilled = new Set((existing ?? []).map((r) => r.group_name));
+
   const standings = await fetchStandings();
   const rows: { kind: string; team: string; group_name: string }[] = [];
   for (const group of standings) {
     if (group.type !== "TOTAL" || !group.group) continue;
+    const groupName = fdGroup(group.group)!;
+    if (alreadyFilled.has(groupName)) continue;
     const winner = group.table.find((t) => t.position === 1);
     if (winner) {
-      rows.push({
-        kind: "GROUP_WINNER",
-        team: winner.team.name,
-        group_name: fdGroup(group.group)!,
-      });
+      rows.push({ kind: "GROUP_WINNER", team: winner.team.name, group_name: groupName });
     }
   }
   if (rows.length > 0) {
@@ -199,9 +207,64 @@ async function maybeFillGroupWinners(db: Admin): Promise<boolean> {
       .from("tournament_results")
       .upsert(rows, { onConflict: "kind,team", ignoreDuplicates: true });
     if (error) throw new Error(`upsert group winners: ${error.message}`);
-    await setSetting(db, "group_winners_filled", "true");
   }
+  // We reached here past the R32-drawn check, so standings are final and every
+  // gap has been reconciled — mark done even if admin pre-filled everything, so
+  // the poller stops spending a standings request each tick.
+  await setSetting(db, "group_winners_filled", "true");
   return rows.length > 0;
+}
+
+const GROUP_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+
+/**
+ * Admin manual override for group winners. Replaces the recorded winner of each
+ * submitted group with the chosen team; groups not submitted are left untouched
+ * (the sync auto-fill still covers them). Each (group, team) is validated against
+ * the synced teams table so a winner always belongs to the group it's set for.
+ * Re-running the leaderboard view picks the +3s up immediately — no rescore needed.
+ */
+export async function setGroupWinners(winners: { group: string; team: string }[]) {
+  const db = createAdminClient();
+  if (winners.length === 0) return { set: 0 };
+
+  const { data: teams, error: teamsErr } = await db.from("teams").select("name, group_name");
+  if (teamsErr) throw new Error(`load teams: ${teamsErr.message}`);
+  const groupByTeam = new Map((teams ?? []).map((t) => [t.name, t.group_name]));
+
+  for (const { group, team } of winners) {
+    if (!GROUP_LETTERS.includes(group)) throw new Error(`invalid group "${group}"`);
+    if (groupByTeam.get(team) !== group) throw new Error(`"${team}" is not in group ${group}`);
+  }
+
+  const groups = winners.map((w) => w.group);
+  // Replace the winner for exactly the submitted groups (delete-then-insert so a
+  // changed pick swaps cleanly; the unique index guards one winner per group).
+  const { error: delErr } = await db
+    .from("tournament_results")
+    .delete()
+    .eq("kind", "GROUP_WINNER")
+    .in("group_name", groups);
+  if (delErr) throw new Error(`clear group winners: ${delErr.message}`);
+
+  const rows = winners.map((w) => ({ kind: "GROUP_WINNER", team: w.team, group_name: w.group }));
+  const { error: insErr } = await db.from("tournament_results").insert(rows);
+  if (insErr) throw new Error(`set group winners: ${insErr.message}`);
+
+  console.log(`[sync] manual group winners set: ${groups.sort().join(", ")}`);
+  return { set: rows.length };
+}
+
+/** Drop a manually-set group winner so the sync auto-fill can take it again. */
+export async function clearGroupWinner(group: string) {
+  const db = createAdminClient();
+  const { error } = await db
+    .from("tournament_results")
+    .delete()
+    .eq("kind", "GROUP_WINNER")
+    .eq("group_name", group);
+  if (error) throw new Error(`clear group winner ${group}: ${error.message}`);
+  return { cleared: group };
 }
 
 /**

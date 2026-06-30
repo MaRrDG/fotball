@@ -121,6 +121,8 @@ describe("fdGroup — 'GROUP_A' -> 'A'", () => {
   it("strips the prefix and handles null", () => {
     expect(fdGroup("GROUP_A")).toBe("A");
     expect(fdGroup("GROUP_L")).toBe("L");
+    expect(fdGroup("Group A")).toBe("A");
+    expect(fdGroup("Group L")).toBe("L");
     expect(fdGroup(null)).toBeNull();
   });
 });
