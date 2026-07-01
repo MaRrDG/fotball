@@ -28,7 +28,13 @@ as $$
   end;
 $$;
 
--- 2. Re-score every already-finished match so stored predictions.points move
---    onto the new scale. Only elimination-round exact-score predictions actually
---    change; everything else recomputes to the same value. Idempotent.
-select public.score_match(id) from public.matches where scored = true;
+-- 2. Recalculate points for EVERY finished match (not just ones already flagged
+--    scored) so stored predictions.points move onto the new scale and any
+--    finished-but-unscored match gets backfilled. Only R16+ exact-score
+--    predictions actually change value; everything else recomputes the same.
+--    Idempotent and safe to run repeatedly.
+select public.score_match(id)
+from public.matches
+where status in ('FT','AET','PEN')
+  and home_goals is not null
+  and away_goals is not null;
