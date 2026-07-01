@@ -10,8 +10,8 @@ of truth for fixtures and scores.
 - **Blind predictions** — nobody sees colleagues' picks until a match locks
   (30 min before kick-off). Enforced by Postgres Row Level Security, not just the UI.
 - **Hard deadlines** — the database rejects any write after T-30, whatever the client says.
-- **Automatic scoring** — per-match points scale with the round, plus a group-winner
-  side bet. The database does the math (see [Scoring](#scoring) below).
+- **Automatic scoring** — per-match points, worth a touch more in the elimination
+  round, plus a group-winner side bet. The database does the math (see [Scoring](#scoring) below).
 - **Free-tier friendly** — the app never calls football-data.org from page loads; a
   rationed sync job stays far under the free tier's 10 requests/minute cap.
 
@@ -26,22 +26,18 @@ penalty-shootout goals never count toward the score):
 
 | Tier | Points | When |
 |---|---|---|
-| **Bulls-eye** | 3–10 | Exact score. Worth more the deeper the round — see table below. |
+| **Bulls-eye** | 3 / 4 | Exact score — 3 in the group stage, 4 in the elimination round. |
 | **Goal difference** | 2 | Right goal difference but not the exact score — the same winning margin (e.g. 3–1 vs 2–0), or a draw called as a draw (e.g. 1–1 vs 2–2). |
-| **Trend** | 1 | Right winner, wrong margin (decisive results only — a draw lands in the tier above). |
+| **Right team** | 1 | Right winner, wrong margin (decisive results only — a draw lands in the tier above). |
 | **Air ball** | 0 | Wrong outcome. |
 
-The bulls-eye (exact-score) reward climbs through the knockout rounds; the
-goal-difference (+2) and trend (+1) tiers stay flat at every stage:
+The bulls-eye (exact-score) reward steps up once for the knockout rounds; the
+goal-difference (+2) and right-team (+1) tiers are the same at every stage:
 
 | Stage | Exact score |
 |---|---|
 | Group stage | +3 |
-| Round of 32 | +4 |
-| Round of 16 | +5 |
-| Quarter-final | +6 |
-| Semi-final / 3rd place | +8 |
-| Final | +10 |
+| Elimination round | +4 |
 
 **Group winners (+3 each)** — call the winner of each of the 12 groups before the
 tournament starts. Max 36 points. This is the only tournament-level pick: the

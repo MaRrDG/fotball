@@ -174,26 +174,19 @@ $$;
 -- ------------------------------------------------------------
 -- SCORING ENGINE (Section 4)
 -- ------------------------------------------------------------
--- The exact-score (bulls-eye) reward grows through the knockout rounds; the
--- goal-difference (2) and trend (1) tiers stay flat. p_stage defaults to GROUP
--- so legacy 4-arg calls (e.g. tests) keep working.
+-- Flat, predictable per-match rubric: exact score (bulls-eye) is 3 in the group
+-- stage and 4 in the elimination round; goal-difference (2) and right-team (1)
+-- are the same at every stage. p_stage defaults to GROUP so legacy 4-arg calls
+-- (e.g. tests) keep working.
 create or replace function public.calc_match_points(ph int, pa int, ah int, aa int, p_stage text default 'GROUP')
 returns int
 language sql immutable
 as $$
   select case
     when ph = ah and pa = aa then
-      case p_stage
-        when 'R32' then 4
-        when 'R16' then 5
-        when 'QF'  then 6
-        when 'SF'  then 8
-        when '3RD' then 8
-        when 'F'   then 10
-        else 3                                                       -- GROUP
-      end
+      case when p_stage = 'GROUP' then 3 else 4 end                  -- bulls-eye: group 3, elimination 4
     when ph - pa = ah - aa                                     then 2  -- same goal difference, incl. a draw called as a draw (both a 0 margin)
-    when sign(ph - pa) = sign(ah - aa)                         then 1  -- correct trend only (right winner, wrong margin)
+    when sign(ph - pa) = sign(ah - aa)                         then 1  -- right team only (right winner, wrong margin)
     else 0
   end;
 $$;

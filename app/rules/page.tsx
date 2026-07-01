@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 const MATCH_POINTS = [
   {
-    pts: "3–10",
+    pts: "3 / 4",
     name: "Bulls-eye",
-    desc: "Exact score. Worth more the deeper the round — see the table below.",
+    desc: "Exact score. 3 in the group stage, 4 in the elimination round.",
     example: "You said 2–1, it ended 2–1.",
     tone: "text-gold",
   },
@@ -22,7 +22,7 @@ const MATCH_POINTS = [
   },
   {
     pts: 1,
-    name: "Trend",
+    name: "Right team",
     desc: "Right winner, wrong margin.",
     example: "You said 3–0, it ended 1–0 — right winner, different gap.",
     tone: "text-chalk",
@@ -36,15 +36,11 @@ const MATCH_POINTS = [
   },
 ];
 
-// The bulls-eye (exact score) reward climbs through the knockout rounds.
-// Goal-difference (+2) and trend (+1) are flat at every stage.
+// The bulls-eye (exact score) is 3 in the group stage and 4 in the elimination
+// round. Goal-difference (+2) and right-team (+1) are flat at every stage.
 const STAGE_BULLSEYE = [
   { stage: "Group stage", pts: 3 },
-  { stage: "Round of 32", pts: 4 },
-  { stage: "Round of 16", pts: 5 },
-  { stage: "Quarter-final", pts: 6 },
-  { stage: "Semi-final / 3rd place", pts: 8 },
-  { stage: "Final", pts: 10 },
+  { stage: "Elimination round", pts: 4 },
 ];
 
 export default async function RulesPage() {
@@ -83,7 +79,7 @@ export default async function RulesPage() {
             </div>
           ))}
         </div>
-        <p className="tag mt-5 mb-2">Bulls-eye — exact score is worth more each round</p>
+        <p className="tag mt-5 mb-2">Bulls-eye — exact score by stage</p>
         <div className="panel overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -103,8 +99,8 @@ export default async function RulesPage() {
           </table>
         </div>
         <p className="mt-2 text-xs text-muted">
-          Goal difference (+2) and trend (+1) stay the same at every stage — only the
-          exact-score bonus climbs.
+          Goal difference (+2) and right team (+1) are the same at every stage — only the
+          exact-score bonus changes, from +3 in the group stage to +4 in the elimination round.
         </p>
       </section>
 

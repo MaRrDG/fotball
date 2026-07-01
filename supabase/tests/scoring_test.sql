@@ -15,7 +15,7 @@ begin;
 
 -- ------------------------------------------------------------
 -- 1. calc_match_points — the per-match formula (pure, no setup)
---    exact score = stage-dependent (GROUP 3 · R32 4 · R16 5 · QF 6 · SF/3RD 8 · F 10)
+--    exact score = GROUP 3 · elimination 4 (flat across every knockout round)
 --    2 = same goal difference but not exact (same decisive margin, OR a draw
 --        called as a draw) · 1 = right winner, wrong margin · 0 = wrong outcome
 -- ------------------------------------------------------------
@@ -25,14 +25,14 @@ begin
   assert public.calc_match_points(2,1, 2,1) = 3, 'exact 2-1 (group) -> 3';
   assert public.calc_match_points(0,0, 0,0) = 3, 'exact 0-0 (group) -> 3';
 
-  -- bulls-eye scales by stage
+  -- bulls-eye: 3 in the group stage, a flat 4 through every elimination round
   assert public.calc_match_points(2,1, 2,1, 'GROUP') = 3, 'exact, group -> 3';
   assert public.calc_match_points(2,1, 2,1, 'R32')   = 4, 'exact, R32 -> 4';
-  assert public.calc_match_points(2,1, 2,1, 'R16')   = 5, 'exact, R16 -> 5';
-  assert public.calc_match_points(2,1, 2,1, 'QF')    = 6, 'exact, QF -> 6';
-  assert public.calc_match_points(2,1, 2,1, 'SF')    = 8, 'exact, SF -> 8';
-  assert public.calc_match_points(2,1, 2,1, '3RD')   = 8, 'exact, 3rd place -> 8';
-  assert public.calc_match_points(2,1, 2,1, 'F')     = 10, 'exact, final -> 10';
+  assert public.calc_match_points(2,1, 2,1, 'R16')   = 4, 'exact, R16 -> 4';
+  assert public.calc_match_points(2,1, 2,1, 'QF')    = 4, 'exact, QF -> 4';
+  assert public.calc_match_points(2,1, 2,1, 'SF')    = 4, 'exact, SF -> 4';
+  assert public.calc_match_points(2,1, 2,1, '3RD')   = 4, 'exact, 3rd place -> 4';
+  assert public.calc_match_points(2,1, 2,1, 'F')     = 4, 'exact, final -> 4';
 
   -- goal-difference and trend stay flat regardless of stage
   assert public.calc_match_points(3,1, 2,0) = 2, 'home win by 2 vs by 2 -> 2';
@@ -58,8 +58,9 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
--- 2. score_match — end to end: stage-scaled exact score and is_bullseye. A
---    penalty final scores off its 1-1 result like any other match (no bonus).
+-- 2. score_match — end to end: a group exact score (+3), an elimination exact
+--    score (+4), and is_bullseye. A penalty final scores off its 1-1 result
+--    like any other match (no shootout bonus).
 --    Detach the auth.users FK so we can use synthetic profile ids; the whole
 --    transaction is rolled back, so the constraint is restored.
 -- ------------------------------------------------------------
@@ -92,8 +93,8 @@ insert into public.predictions (user_id, match_id, home_goals, away_goals) value
 -- Predictions on the penalty final (actual 1-1; the shootout result no longer
 -- affects scoring — only the 1-1 does).
 insert into public.predictions (user_id, match_id, home_goals, away_goals) values
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 9000002, 1, 1),  -- final exact -> 10 (+ bullseye)
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 9000002, 1, 1),  -- final exact -> 10 (+ bullseye)
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 9000002, 1, 1),  -- final exact -> 4 (+ bullseye)
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 9000002, 1, 1),  -- final exact -> 4 (+ bullseye)
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', 9000002, 0, 0);  -- draw-for-draw GD -> 2
 
 select public.score_match(9000001);
@@ -116,11 +117,11 @@ begin
 
   select points, is_bullseye into p, b from public.predictions
    where user_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and match_id = 9000002;
-  assert p = 10 and b, format('Alice/penalty expected 10+bullseye (final exact), got %s/%s', p, b);
+  assert p = 4 and b, format('Alice/penalty expected 4+bullseye (final exact), got %s/%s', p, b);
 
   select points, is_bullseye into p, b from public.predictions
    where user_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' and match_id = 9000002;
-  assert p = 10 and b, format('Bob/penalty expected 10+bullseye (final exact), got %s/%s', p, b);
+  assert p = 4 and b, format('Bob/penalty expected 4+bullseye (final exact), got %s/%s', p, b);
 
   select points into p from public.predictions
    where user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' and match_id = 9000002;
@@ -141,8 +142,8 @@ declare r public.leaderboard%rowtype;
 begin
   select * into r from public.leaderboard
    where user_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-  -- match_points = 3 (group regular) + 10 (penalty final) = 13
-  assert r.match_points = 13, format('Alice match_points expected 13, got %s', r.match_points);
+  -- match_points = 3 (group regular) + 4 (elimination final) = 7
+  assert r.match_points = 7, format('Alice match_points expected 7, got %s', r.match_points);
   -- two bulls-eyes (both predictions exact)
   assert r.bullseyes = 2, format('Alice bullseyes expected 2, got %s', r.bullseyes);
   -- only the GROUP match counts toward group_stage_points
